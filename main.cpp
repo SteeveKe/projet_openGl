@@ -1,120 +1,73 @@
+#include "MathUtils.h"
+#include "Mesh.h"
+#include "ObjLoader.h"
+#include "Shader.h"
+
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-#include <fstream>
+#include <filesystem>
 #include <iostream>
-#include <sstream>
-#include <string>
 
 #ifndef SHADER_DIR
 #define SHADER_DIR "src"
 #endif
 
+#ifndef MODEL_DIR
+#define MODEL_DIR "models"
+#endif
+
+namespace {
+
 GLuint shaderProgram = 0;
-GLuint vao = 0;
-GLuint vbo = 0;
+Mesh modelMesh;
+int windowWidth = 1200;
+int windowHeight = 1200;
 
-std::string readFile(const std::string& path)
+void reshape(int width, int height)
 {
-    std::ifstream file(path);
-    if (!file) {
-        std::cerr << "Impossible d'ouvrir le shader : " << path << std::endl;
-        return "";
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+    windowWidth = width;
+    windowHeight = height > 0 ? height : 1;
+    glViewport(0, 0, windowWidth, windowHeight);
 }
 
-// Compile un shader
-GLuint compileShader(GLenum type, const std::string& source)
+void update()
 {
-    GLuint shader = glCreateShader(type);
-    const char* sourcePtr = source.c_str();
-
-    glShaderSource(shader, 1, &sourcePtr, nullptr);
-    glCompileShader(shader);
-
-    GLint success = GL_FALSE;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-
-    if (success != GL_TRUE) {
-        char log[1024];
-        glGetShaderInfoLog(shader, sizeof(log), nullptr, log);
-        std::cerr << "Erreur compilation shader :\n" << log << std::endl;
-    }
-
-    return shader;
-}
-
-// Assemble le vertex shader et le fragment shader dans un programme
-GLuint createShaderProgram()
-{
-    const std::string vertexSource = readFile(std::string(SHADER_DIR) + "/vertex.vert");
-    const std::string fragmentSource = readFile(std::string(SHADER_DIR) + "/fragment.frag");
-
-    GLuint vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-    GLuint fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-
-    GLuint program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-
-    GLint success = GL_FALSE;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-
-    if (success != GL_TRUE) {
-        char log[1024];
-        glGetProgramInfoLog(program, sizeof(log), nullptr, log);
-        std::cerr << "Erreur linkage programme shader :\n" << log << std::endl;
-    }
-
-    // Apres le linkage, le programme garde le resultat compile.
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    return program;
-}
-
-void createTriangle()
-{
-    const float vertices[] = {
-        // x, y
-        -0.6f, -0.4f,
-         0.6f, -0.4f,
-         0.0f,  0.6f,
-    };
-
-    glGenVertexArrays(1, &vao);
-    glGenBuffers(1, &vbo);
-
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    // layout(location = 0) dans vertex.vert correspond a deux floats : x et y.
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    glutPostRedisplay();
 }
 
 void display()
 {
     glClearColor(0.10f, 0.10f, 0.12f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // On active les shaders, puis on dessine les 3 sommets du triangle.
+    const float time = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) / 1000.0f;
+    const float aspect = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
+    const Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 100.0f);
+    const Mat4 view = translate(0.0f, 0.0f, -4.0f);
+    const Mat4 model = multiply(rotateY(time), rotateX(0.0f));
+    const Mat4 mvp = multiply(projection, multiply(view, model));
+
     glUseProgram(shaderProgram);
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, mvp.data());
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, model.data());
+    glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, modelMesh.color.data());
+    glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), modelMesh.hasTexture ? 1 : 0);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+
+    if (modelMesh.hasTexture) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, modelMesh.texture);
+    }
+
+    glBindVertexArray(modelMesh.vao);
+    glDrawArrays(GL_TRIANGLES, 0, modelMesh.vertexCount);
     glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     glutSwapBuffers();
+}
+
 }
 
 int main(int argc, char** argv)
@@ -123,8 +76,8 @@ int main(int argc, char** argv)
 
     glutInitContextVersion(3, 3);
     glutInitContextProfile(GLUT_CORE_PROFILE);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-    glutInitWindowSize(1200, 1200);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitWindowSize(windowWidth, windowHeight);
     glutCreateWindow("OpenGL avec shaders");
 
     glewExperimental = GL_TRUE;
@@ -133,10 +86,16 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    shaderProgram = createShaderProgram();
-    createTriangle();
+    shaderProgram = createShaderProgram(
+        std::filesystem::path(SHADER_DIR) / "vertex.vert",
+        std::filesystem::path(SHADER_DIR) / "fragment.frag"
+    );
+    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "BigDrill3-TEST.obj");
+    glEnable(GL_DEPTH_TEST);
 
     glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
+    glutIdleFunc(update);
     glutMainLoop();
 
     return 0;
