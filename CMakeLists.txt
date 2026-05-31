@@ -14,6 +14,8 @@ add_executable(openGl
         src/ObjLoader.cpp
         src/Shader.cpp
         src/Texture.cpp
+        src/FrameBuffer.cpp
+        src/FrameBuffer.h
 )
 
 target_include_directories(openGl
@@ -24,7 +26,7 @@ target_include_directories(openGl
 
 target_compile_definitions(openGl
         PRIVATE
-        SHADER_DIR="${CMAKE_SOURCE_DIR}/src"
+        SHADER_DIR="${CMAKE_SOURCE_DIR}/src/shader"
         MODEL_DIR="${CMAKE_SOURCE_DIR}/models"
 )
 

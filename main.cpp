@@ -9,8 +9,10 @@
 #include <filesystem>
 #include <iostream>
 
+#include "FrameBuffer.h"
+
 #ifndef SHADER_DIR
-#define SHADER_DIR "src"
+#define SHADER_DIR "src/shader"
 #endif
 
 #ifndef MODEL_DIR
@@ -19,10 +21,22 @@
 
 namespace {
 
+GLuint screenVao = 0;
+GLuint screenShaderProgram = 0;
+
 GLuint shaderProgram = 0;
 Mesh modelMesh;
-int windowWidth = 1200;
-int windowHeight = 1200;
+int windowWidth = 2000;
+int windowHeight = 2000;
+float mouseX = 0.5f;
+float mouseY = 0.5f;
+GLuint framebuffer = 0;
+GLuint framebufferColorTexture = 0;
+GLuint framebufferDepthTexture = 0;
+GLuint framebufferNormalTexture = 0;
+
+const GLfloat clearColor[] = {0.10f, 0.10f, 0.12f, 1.0f};
+const GLfloat clearNormal[] = {0.5f, 0.5f, 1.0f, 1.0f};
 
 void reshape(int width, int height)
 {
@@ -36,35 +50,89 @@ void update()
     glutPostRedisplay();
 }
 
+void mouseMove(int x, int y)
+{
+    mouseX = static_cast<float>(x) / static_cast<float>(windowWidth);
+    mouseY = 1.0f - static_cast<float>(y) / static_cast<float>(windowHeight);
+}
+
+void createScreenTriangle()
+{
+    glGenVertexArrays(1, &screenVao);
+}
+
 void display()
 {
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glViewport(0, 0, windowWidth, windowHeight);
+    glEnable(GL_DEPTH_TEST);
+
     glClearColor(0.10f, 0.10f, 0.12f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     const float time = static_cast<float>(glutGet(GLUT_ELAPSED_TIME)) / 1000.0f;
     const float aspect = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
     const Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 100.0f);
-    const Mat4 view = translate(0.0f, 0.0f, -4.0f);
-    const Mat4 model = multiply(rotateY(time), rotateX(0.0f));
+    const Mat4 view = translate(0.0f, 0.0f, -3.0f);
+    const Mat4 model = multiply(rotateY(time * 1.0f), rotateX(time * 0.0f));
     const Mat4 mvp = multiply(projection, multiply(view, model));
 
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, mvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, model.data());
-    glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, modelMesh.color.data());
-    glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), modelMesh.hasTexture ? 1 : 0);
     glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
 
-    if (modelMesh.hasTexture) {
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, modelMesh.texture);
-    }
-
     glBindVertexArray(modelMesh.vao);
-    glDrawArrays(GL_TRIANGLES, 0, modelMesh.vertexCount);
+    for (const SubMesh& subMesh : modelMesh.subMeshes) {
+        glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, subMesh.color.data());
+        glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), subMesh.hasTexture ? 1 : 0);
+
+        if (subMesh.hasTexture) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, subMesh.texture);
+        } else {
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
+    }
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, windowWidth, windowHeight);
+
+    glDisable(GL_DEPTH_TEST);
+    glClearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glUseProgram(screenShaderProgram);
+
+    // Texture 0 : couleur
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, framebufferColorTexture);
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "colorTexture"), 0);
+
+    // Texture 1 : normales
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, framebufferNormalTexture);
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "normalTexture"), 1);
+
+    // Texture 2 : profondeur
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, framebufferDepthTexture);
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "depthTexture"), 2);
+
+    // 0 = rendu, 1 = normales, 2 = profondeur, 3 = Sobel seul, 4 = rendu + Sobel
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "debugMode"), 5);
+    glUniform2f(glGetUniformLocation(screenShaderProgram, "uLightPosition"), mouseX, mouseY);
+    glUniform1f(glGetUniformLocation(screenShaderProgram, "uLightHeight"), 0.35f);
+
+    glBindVertexArray(screenVao);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glBindVertexArray(0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
     glutSwapBuffers();
 }
 
@@ -90,12 +158,28 @@ int main(int argc, char** argv)
         std::filesystem::path(SHADER_DIR) / "vertex.vert",
         std::filesystem::path(SHADER_DIR) / "fragment.frag"
     );
-    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "BigDrill3-TEST.obj");
+
+    screenShaderProgram = createShaderProgram(
+        std::filesystem::path(SHADER_DIR) / "screen.vert",
+        std::filesystem::path(SHADER_DIR) / "screen.frag");
+    createScreenTriangle();
+
+    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "IronMan.obj");
     glEnable(GL_DEPTH_TEST);
+
+    generateFrameBuffer (
+        windowWidth, windowHeight,
+        framebufferColorTexture,
+        framebufferNormalTexture,
+        framebufferDepthTexture,
+        framebuffer
+    );
 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
     glutIdleFunc(update);
+    glutPassiveMotionFunc(mouseMove);
+    glutMotionFunc(mouseMove);
     glutMainLoop();
 
     return 0;

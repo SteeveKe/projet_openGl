@@ -7,8 +7,84 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
+#include <string>
+#include <unordered_map>
 #include <vector>
+
+namespace {
+
+struct MaterialBatch {
+    int materialId = -1;
+    std::vector<float> vertices;
+};
+
+std::array<float, 3> materialColor(const tinyobj::material_t& material)
+{
+    const std::array<float, 3> diffuse = {
+        material.diffuse[0],
+        material.diffuse[1],
+        material.diffuse[2],
+    };
+
+    const bool hasDefaultDiffuse =
+        std::abs(diffuse[0] - 0.8f) < 0.001f &&
+        std::abs(diffuse[1] - 0.8f) < 0.001f &&
+        std::abs(diffuse[2] - 0.8f) < 0.001f;
+
+    if (!hasDefaultDiffuse) {
+        return diffuse;
+    }
+
+    if (material.name.find("granate") != std::string::npos) {
+        return {0.42f, 0.02f, 0.03f};
+    }
+    if (material.name.find("dorado") != std::string::npos) {
+        return {0.95f, 0.62f, 0.16f};
+    }
+    if (material.name.find("plata") != std::string::npos ||
+        material.name.find("tornillos") != std::string::npos) {
+        return {0.68f, 0.68f, 0.64f};
+    }
+    if (material.name.find("negro") != std::string::npos ||
+        material.name.find("porsi") != std::string::npos) {
+        return {0.02f, 0.02f, 0.02f};
+    }
+    if (material.name.find("propulsor") != std::string::npos ||
+        material.name.find("ojoscasco_2") != std::string::npos) {
+        return {0.35f, 0.85f, 1.0f};
+    }
+
+    return diffuse;
+}
+
+std::array<float, 3> colorForMaterial(const std::vector<tinyobj::material_t>& materials, int materialId)
+{
+    if (materialId >= 0 && materialId < static_cast<int>(materials.size())) {
+        return materialColor(materials[materialId]);
+    }
+
+    return {0.78f, 0.62f, 0.38f};
+}
+
+GLuint textureForMaterial(const std::filesystem::path& modelDirectory,
+                          const std::vector<tinyobj::material_t>& materials,
+                          int materialId)
+{
+    if (materialId < 0 || materialId >= static_cast<int>(materials.size())) {
+        return 0;
+    }
+
+    const std::string& diffuseTexture = materials[materialId].diffuse_texname;
+    if (diffuseTexture.empty()) {
+        return 0;
+    }
+
+    return loadTexture(modelDirectory / diffuseTexture);
+}
+
+}
 
 Mesh loadObjModel(const std::filesystem::path& objPath)
 {
@@ -68,12 +144,29 @@ Mesh loadObjModel(const std::filesystem::path& objPath)
     const float sizeZ = maxPosition[2] - minPosition[2];
     const float scale = 1.8f / std::max(sizeX, std::max(sizeY, sizeZ));
 
-    std::vector<float> vertices;
+    std::vector<MaterialBatch> batches;
+    std::unordered_map<int, std::size_t> batchIndices;
+
+    const auto verticesForMaterial = [&batches, &batchIndices](int materialId) -> std::vector<float>& {
+        const auto found = batchIndices.find(materialId);
+        if (found != batchIndices.end()) {
+            return batches[found->second].vertices;
+        }
+
+        const std::size_t batchIndex = batches.size();
+        batchIndices[materialId] = batchIndex;
+        batches.push_back({materialId, {}});
+        return batches.back().vertices;
+    };
 
     for (const tinyobj::shape_t& shape : shapes) {
         std::size_t indexOffset = 0;
         for (std::size_t faceIndex = 0; faceIndex < shape.mesh.num_face_vertices.size(); ++faceIndex) {
             const int faceVertexCount = shape.mesh.num_face_vertices[faceIndex];
+            const int materialId = faceIndex < shape.mesh.material_ids.size()
+                ? shape.mesh.material_ids[faceIndex]
+                : -1;
+            std::vector<float>& vertices = verticesForMaterial(materialId);
 
             for (int vertexIndex = 0; vertexIndex < faceVertexCount; ++vertexIndex) {
                 const tinyobj::index_t objIndex = shape.mesh.indices[indexOffset + vertexIndex];
@@ -108,16 +201,26 @@ Mesh loadObjModel(const std::filesystem::path& objPath)
         }
     }
 
+    std::vector<float> vertices;
     Mesh mesh;
-    mesh.vertexCount = static_cast<GLsizei>(vertices.size() / 8);
 
-    for (const tinyobj::material_t& material : materials) {
-        if (!material.diffuse_texname.empty()) {
-            mesh.texture = loadTexture(modelDirectory / material.diffuse_texname);
-            mesh.hasTexture = mesh.texture != 0;
-            break;
+    for (const MaterialBatch& batch : batches) {
+        if (batch.vertices.empty()) {
+            continue;
         }
+
+        SubMesh subMesh;
+        subMesh.firstVertex = static_cast<GLsizei>(vertices.size() / 8);
+        subMesh.vertexCount = static_cast<GLsizei>(batch.vertices.size() / 8);
+        subMesh.color = colorForMaterial(materials, batch.materialId);
+        subMesh.texture = textureForMaterial(modelDirectory, materials, batch.materialId);
+        subMesh.hasTexture = subMesh.texture != 0;
+        mesh.subMeshes.push_back(subMesh);
+
+        vertices.insert(vertices.end(), batch.vertices.begin(), batch.vertices.end());
     }
+
+    mesh.vertexCount = static_cast<GLsizei>(vertices.size() / 8);
 
     glGenVertexArrays(1, &mesh.vao);
     glGenBuffers(1, &mesh.vbo);
