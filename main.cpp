@@ -1,4 +1,6 @@
+#include "GrassGenerator.h"
 #include "MathUtils.h"
+#include "TerrainGenerator.h"
 #include "Mesh.h"
 #include "ObjLoader.h"
 #include "Shader.h"
@@ -25,7 +27,11 @@ GLuint screenVao = 0;
 GLuint screenShaderProgram = 0;
 
 GLuint shaderProgram = 0;
+GLuint grassShaderProgram = 0;
 Mesh modelMesh;
+Mesh grassMesh;
+//terrain
+Mesh terrainMesh;
 int windowWidth = 2000;
 int windowHeight = 2000;
 float mouseX = 0.5f;
@@ -77,6 +83,8 @@ void display()
     const Mat4 model = multiply(rotateY(time * 1.0f), rotateX(time * 0.0f));
     const Mat4 mvp = multiply(projection, multiply(view, model));
 
+    // IronMan
+    /*
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, mvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, model.data());
@@ -94,6 +102,44 @@ void display()
             glBindTexture(GL_TEXTURE_2D, 0);
         }
 
+        glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    */
+
+    //terrain
+    const Mat4 terrainModel = identity();
+    const Mat4 terrainMvp = multiply(projection, multiply(view, terrainModel));
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, terrainMvp.data());
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, terrainModel.data());
+    glBindVertexArray(terrainMesh.vao);
+    for (const SubMesh& subMesh : terrainMesh.subMeshes) {
+        glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, subMesh.color.data());
+        glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), 0);
+        glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
+    }
+    glBindVertexArray(0);
+
+    // herbe
+    const Mat4 grassModel = identity();
+    const Mat4 grassMvp = multiply(projection, multiply(view, grassModel));
+
+    glUseProgram(grassShaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(grassShaderProgram, "uMvp"), 1, GL_FALSE, grassMvp.data());
+    glUniformMatrix4fv(glGetUniformLocation(grassShaderProgram, "uModel"), 1, GL_FALSE, grassModel.data());
+    glUniform1f(glGetUniformLocation(grassShaderProgram, "uTime"), time);
+
+    glBindVertexArray(grassMesh.vao);
+    for (const SubMesh& subMesh : grassMesh.subMeshes) {
+        glUniform3fv(glGetUniformLocation(grassShaderProgram, "uColor"), 1, subMesh.color.data());
+        glUniform1i(glGetUniformLocation(grassShaderProgram, "uUseTexture"), subMesh.hasTexture ? 1 : 0);
+        if (subMesh.hasTexture) {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, subMesh.texture);
+            glUniform1i(glGetUniformLocation(grassShaderProgram, "uTexture"), 0);
+        }
         glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
     }
     glBindVertexArray(0);
@@ -124,7 +170,7 @@ void display()
     glUniform1i(glGetUniformLocation(screenShaderProgram, "depthTexture"), 2);
 
     // 0 = rendu, 1 = normales, 2 = profondeur, 3 = Sobel seul, 4 = rendu + Sobel
-    glUniform1i(glGetUniformLocation(screenShaderProgram, "debugMode"), 5);
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "debugMode"), 0);
     glUniform2f(glGetUniformLocation(screenShaderProgram, "uLightPosition"), mouseX, mouseY);
     glUniform1f(glGetUniformLocation(screenShaderProgram, "uLightHeight"), 0.35f);
 
@@ -163,6 +209,15 @@ int main(int argc, char** argv)
         std::filesystem::path(SHADER_DIR) / "screen.vert",
         std::filesystem::path(SHADER_DIR) / "screen.frag");
     createScreenTriangle();
+
+    grassShaderProgram = createShaderProgram(
+        std::filesystem::path(SHADER_DIR) / "grass.vert",
+        std::filesystem::path(SHADER_DIR) / "grass.frag"
+    );
+    grassMesh = generateGrass(15000, 4.0f, std::filesystem::path(MODEL_DIR) / "grass.png");
+
+    //terrain
+    terrainMesh = generateTerrain(100, 100.0f);
 
     modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "IronMan.obj");
     glEnable(GL_DEPTH_TEST);
