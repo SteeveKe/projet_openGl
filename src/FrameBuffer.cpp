@@ -86,7 +86,6 @@ static GLuint createColorTextureRGBA8(int width, int height)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -95,7 +94,7 @@ static GLuint createColorTextureRGBA8(int width, int height)
     return texture;
 }
 
-static GLuint createNormalTexture(int width, int height)
+static GLuint createFloatTextureRGBA16F(int width, int height)
 {
     GLuint texture = 0;
 
@@ -116,7 +115,6 @@ static GLuint createNormalTexture(int width, int height)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -146,7 +144,6 @@ static GLuint createDepthTexture(int width, int height)
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -165,7 +162,7 @@ void generateFrameBuffer(
 )
 {
     colorTexture = createColorTextureRGBA8(width, height);
-    normalTexture = createNormalTexture(width, height);
+    normalTexture = createFloatTextureRGBA16F(width, height);
     depthTexture = createDepthTexture(width, height);
 
     glGenFramebuffers(1, &framebuffer);
@@ -199,7 +196,6 @@ void generateFrameBuffer(
         GL_COLOR_ATTACHMENT0,
         GL_COLOR_ATTACHMENT1
     };
-
     glDrawBuffers(2, attachments);
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {

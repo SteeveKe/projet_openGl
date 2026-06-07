@@ -10,4 +10,5 @@ void generateFrameBuffer(
     GLuint& framebuffer
 );
 
+
 //GLuint generateDepthTexture(int width, int height);

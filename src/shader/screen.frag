@@ -8,11 +8,72 @@ uniform sampler2D normalTexture;
 uniform sampler2D depthTexture;
 
 uniform int debugMode;
-uniform vec2 uLightPosition;
-uniform float uLightHeight;
+uniform vec2 uLightPosition; // position de la lumiere en UV [0, 1]
+uniform float uLightHeight;  // hauteur Z de la lumiere
 
 const float nearPlane = 0.1;
-const float farPlane = 10.0;
+const float farPlane = 100.0;
+const float DEBUG_DEPTH_NEAR = 2.5;
+const float DEBUG_DEPTH_FAR = 3.5;
+
+
+//ombres en cercles
+const float CIRCLE_SHADOW_GRID_STEP = 7.0;
+const float CIRCLE_SHADOW_ROTATION = 20.0;
+const float CIRCLE_SHADOW_RADIUS = 0.8;
+const float CIRCLE_SHADOW_DARKNESS = 0.3;
+const float CIRCLE_SHADOW_MIN_LIGHT = 0.05;
+
+//Intensites du cel shading
+const float CEL_SHADOW_LIGHT = 0.30;
+const float CEL_FULL_LIGHT = 1.00;
+
+//Seuils du two-step cel
+const float CEL_STEP_1 = 0.33;
+const float CEL_STEP_2 = 0.66;
+
+vec3 decodeNormal(vec3 encodedNormal)
+{
+    //Pour recuperer normale entre [-1, 1]
+    return normalize(encodedNormal * 2.0 - 1.0);
+}
+
+float luminance(vec3 color)
+{
+    return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+float objectMask(vec2 uv)
+{
+    float rawDepth = texture(depthTexture, uv).r;
+    return 1.0 - step(0.9999, rawDepth);
+}
+
+float linearDepth(float depth)
+{
+    float z = depth * 2.0 - 1.0;
+    return (2.0 * nearPlane * farPlane) /
+    (farPlane + nearPlane - z * (farPlane - nearPlane));
+}
+
+float computeDiffuse(vec2 uv, vec3 encodedNormal)
+{
+    vec3 normal = decodeNormal(encodedNormal);
+
+    vec2 resolution = vec2(textureSize(colorTexture, 0));
+
+    vec2 lightDelta = uLightPosition - uv;
+    lightDelta.x *= resolution.x / resolution.y;
+
+    vec3 lightDirection = normalize(vec3(lightDelta, uLightHeight));
+
+    return max(dot(normal, lightDirection), 0.0);
+}
+
+float twoStepCel(float diffuse)
+{
+    return 0.5 * (step(CEL_STEP_1, diffuse) + step(CEL_STEP_2, diffuse));
+}
 
 float circle(vec2 pixel, vec2 center, float radius)
 {
@@ -26,88 +87,17 @@ mat2 rotate2D(float angle)
     return mat2(c, -s, s, c);
 }
 
-float halftoneShadow(vec2 fragCoord, float diffuse)
-{
-    vec2 resolution = vec2(textureSize(colorTexture, 0));
-
-    vec2 pos = fragCoord - 0.5 * resolution;
-    pos = rotate2D(radians(20.0)) * pos;
-
-    float gridStep = 8.0;
-    vec2 gridPos = mod(pos, gridStep);
-
-    float shadowAmount = 1.0 - diffuse;
-
-    float radius = 0.95 * gridStep * pow(shadowAmount, 2.0);
-
-    float dotMask = circle(
-    gridPos,
-    vec2(gridStep * 0.5),
-    radius
-    );
-
-    return dotMask;
-}
-
-float computeDiffuse(vec2 uv, vec3 encodedNormal)
-{
-    vec3 normal = normalize(encodedNormal * 2.0 - 1.0);
-
-    vec2 resolution = vec2(textureSize(colorTexture, 0));
-
-    vec2 lightDelta = uLightPosition - uv;
-    lightDelta.x *= resolution.x / resolution.y;
-
-    vec3 lightDirection = normalize(vec3(lightDelta, uLightHeight));
-
-    return max(dot(normal, lightDirection), 0.0);
-}
-
-/*
-vec3 applyLighting(vec3 baseColor, vec3 encodedNormal)
-{
-    vec3 normal = normalize(encodedNormal * 2.0 - 1.0);
-    vec3 lightDirection = normalize(vec3(0.4, 0.8, 0.6));
-    float light = max(dot(normal, lightDirection), 0.0);
-
-    return baseColor * (0.25 + light * 0.75);
-}
-*/
-
-vec3 applyLighting(vec3 baseColor, vec3 encodedNormal)
-{
-    float diffuse = computeDiffuse(vUV, encodedNormal);
-
-    float lighting = 0.25 + diffuse * 0.75;
-
-    float dots = halftoneShadow(gl_FragCoord.xy, diffuse);
-
-    float dotDarkness = 0.3;
-    float halftoneFactor = mix(1.0, dotDarkness, dots);
-
-    return baseColor * lighting * halftoneFactor;
-}
-
-float luminance(vec3 color)
-{
-    return dot(color, vec3(0.299, 0.587, 0.114));
-}
-
-float linearDepth(float depth)
-{
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * nearPlane * farPlane) / (farPlane + nearPlane - z * (farPlane - nearPlane));
-}
+// Sobel couleur + normales + profondeur
 
 float sobelFloat(
-    float topLeft,
-    float top,
-    float topRight,
-    float left,
-    float right,
-    float bottomLeft,
-    float bottom,
-    float bottomRight
+float topLeft,
+float top,
+float topRight,
+float left,
+float right,
+float bottomLeft,
+float bottom,
+float bottomRight
 )
 {
     float gx = -topLeft + topRight - 2.0 * left + 2.0 * right - bottomLeft + bottomRight;
@@ -116,14 +106,14 @@ float sobelFloat(
 }
 
 float sobelVec3(
-    vec3 topLeft,
-    vec3 top,
-    vec3 topRight,
-    vec3 left,
-    vec3 right,
-    vec3 bottomLeft,
-    vec3 bottom,
-    vec3 bottomRight
+vec3 topLeft,
+vec3 top,
+vec3 topRight,
+vec3 left,
+vec3 right,
+vec3 bottomLeft,
+vec3 bottom,
+vec3 bottomRight
 )
 {
     vec3 gx = -topLeft + topRight - 2.0 * left + 2.0 * right - bottomLeft + bottomRight;
@@ -136,123 +126,176 @@ float sobelEdges(vec2 uv)
     float outlineSize = 1.0;
     vec2 texel = outlineSize / vec2(textureSize(colorTexture, 0));
 
-    vec2 uvTopLeft = uv + texel * vec2(-1.0, 1.0);
-    vec2 uvTop = uv + texel * vec2(0.0, 1.0);
-    vec2 uvTopRight = uv + texel * vec2(1.0, 1.0);
-    vec2 uvLeft = uv + texel * vec2(-1.0, 0.0);
-    vec2 uvRight = uv + texel * vec2(1.0, 0.0);
-    vec2 uvBottomLeft = uv + texel * vec2(-1.0, -1.0);
-    vec2 uvBottom = uv + texel * vec2(0.0, -1.0);
-    vec2 uvBottomRight = uv + texel * vec2(1.0, -1.0);
+    vec2 uvTopLeft     = uv + texel * vec2(-1.0,  1.0);
+    vec2 uvTop         = uv + texel * vec2( 0.0,  1.0);
+    vec2 uvTopRight    = uv + texel * vec2( 1.0,  1.0);
+    vec2 uvLeft        = uv + texel * vec2(-1.0,  0.0);
+    vec2 uvRight       = uv + texel * vec2( 1.0,  0.0);
+    vec2 uvBottomLeft  = uv + texel * vec2(-1.0, -1.0);
+    vec2 uvBottom      = uv + texel * vec2( 0.0, -1.0);
+    vec2 uvBottomRight = uv + texel * vec2( 1.0, -1.0);
 
+    //Contours de couleur
     float colorEdge = sobelFloat(
-        luminance(texture(colorTexture, uvTopLeft).rgb),
-        luminance(texture(colorTexture, uvTop).rgb),
-        luminance(texture(colorTexture, uvTopRight).rgb),
-        luminance(texture(colorTexture, uvLeft).rgb),
-        luminance(texture(colorTexture, uvRight).rgb),
-        luminance(texture(colorTexture, uvBottomLeft).rgb),
-        luminance(texture(colorTexture, uvBottom).rgb),
-        luminance(texture(colorTexture, uvBottomRight).rgb)
+    luminance(texture(colorTexture, uvTopLeft).rgb),
+    luminance(texture(colorTexture, uvTop).rgb),
+    luminance(texture(colorTexture, uvTopRight).rgb),
+    luminance(texture(colorTexture, uvLeft).rgb),
+    luminance(texture(colorTexture, uvRight).rgb),
+    luminance(texture(colorTexture, uvBottomLeft).rgb),
+    luminance(texture(colorTexture, uvBottom).rgb),
+    luminance(texture(colorTexture, uvBottomRight).rgb)
     );
 
-    vec3 normalTopLeft = texture(normalTexture, uvTopLeft).rgb * 2.0 - 1.0;
-    vec3 normalTop = texture(normalTexture, uvTop).rgb * 2.0 - 1.0;
-    vec3 normalTopRight = texture(normalTexture, uvTopRight).rgb * 2.0 - 1.0;
-    vec3 normalLeft = texture(normalTexture, uvLeft).rgb * 2.0 - 1.0;
-    vec3 normalRight = texture(normalTexture, uvRight).rgb * 2.0 - 1.0;
-    vec3 normalBottomLeft = texture(normalTexture, uvBottomLeft).rgb * 2.0 - 1.0;
-    vec3 normalBottom = texture(normalTexture, uvBottom).rgb * 2.0 - 1.0;
-    vec3 normalBottomRight = texture(normalTexture, uvBottomRight).rgb * 2.0 - 1.0;
+    // Contours de normales
+    vec3 normalTopLeft     = decodeNormal(texture(normalTexture, uvTopLeft).rgb);
+    vec3 normalTop         = decodeNormal(texture(normalTexture, uvTop).rgb);
+    vec3 normalTopRight    = decodeNormal(texture(normalTexture, uvTopRight).rgb);
+    vec3 normalLeft        = decodeNormal(texture(normalTexture, uvLeft).rgb);
+    vec3 normalRight       = decodeNormal(texture(normalTexture, uvRight).rgb);
+    vec3 normalBottomLeft  = decodeNormal(texture(normalTexture, uvBottomLeft).rgb);
+    vec3 normalBottom      = decodeNormal(texture(normalTexture, uvBottom).rgb);
+    vec3 normalBottomRight = decodeNormal(texture(normalTexture, uvBottomRight).rgb);
 
     float normalEdge = sobelVec3(
-        normalTopLeft,
-        normalTop,
-        normalTopRight,
-        normalLeft,
-        normalRight,
-        normalBottomLeft,
-        normalBottom,
-        normalBottomRight
+    normalTopLeft,
+    normalTop,
+    normalTopRight,
+    normalLeft,
+    normalRight,
+    normalBottomLeft,
+    normalBottom,
+    normalBottomRight
     );
 
-    float depthTopLeft = linearDepth(texture(depthTexture, uvTopLeft).r) / farPlane;
-    float depthTop = linearDepth(texture(depthTexture, uvTop).r) / farPlane;
-    float depthTopRight = linearDepth(texture(depthTexture, uvTopRight).r) / farPlane;
-    float depthLeft = linearDepth(texture(depthTexture, uvLeft).r) / farPlane;
-    float depthRight = linearDepth(texture(depthTexture, uvRight).r) / farPlane;
-    float depthBottomLeft = linearDepth(texture(depthTexture, uvBottomLeft).r) / farPlane;
-    float depthBottom = linearDepth(texture(depthTexture, uvBottom).r) / farPlane;
-    float depthBottomRight = linearDepth(texture(depthTexture, uvBottomRight).r) / farPlane;
+    // Contours de profondeur.
+    float depthTopLeft     = linearDepth(texture(depthTexture, uvTopLeft).r) / 10.0;
+    float depthTop         = linearDepth(texture(depthTexture, uvTop).r) / 10.0;
+    float depthTopRight    = linearDepth(texture(depthTexture, uvTopRight).r) / 10.0;
+    float depthLeft        = linearDepth(texture(depthTexture, uvLeft).r) / 10.0;
+    float depthRight       = linearDepth(texture(depthTexture, uvRight).r) / 10.0;
+    float depthBottomLeft  = linearDepth(texture(depthTexture, uvBottomLeft).r) / 10.0;
+    float depthBottom      = linearDepth(texture(depthTexture, uvBottom).r) / 10.0;
+    float depthBottomRight = linearDepth(texture(depthTexture, uvBottomRight).r) / 10.0;
 
     float depthEdge = sobelFloat(
-        depthTopLeft,
-        depthTop,
-        depthTopRight,
-        depthLeft,
-        depthRight,
-        depthBottomLeft,
-        depthBottom,
-        depthBottomRight
+    depthTopLeft,
+    depthTop,
+    depthTopRight,
+    depthLeft,
+    depthRight,
+    depthBottomLeft,
+    depthBottom,
+    depthBottomRight
     );
 
-    //float edgeStrength = colorEdge * 0.7 + normalEdge * 0.4 + depthEdge * 35.0;
-    float edgeStrength = colorEdge * 0.7 + normalEdge * 0.2 + depthEdge * 3.0;
+    // Reglage du poids des differentes sources de contour
+    float edgeStrength = colorEdge * 0.45 + normalEdge * 0.28 + depthEdge * 5.;
+    //float edgeStrength = colorEdge * 0.5 + normalEdge * 0.3 + depthEdge * 10.;
 
     float threshold = 0.18;
-    //float antiAliasWidth = 0.02;
-    //return smoothstep(threshold - antiAliasWidth, threshold + antiAliasWidth, edgeStrength);
     return step(threshold, edgeStrength);
 }
 
+float circleShadowMask(float diffuse)
+{
+    vec2 resolution = vec2(textureSize(colorTexture, 0));
+    vec2 pos = gl_FragCoord.xy - 0.5 * resolution;
+    pos = rotate2D(radians(CIRCLE_SHADOW_ROTATION)) * pos;
+
+    vec2 gridPos = mod(pos, CIRCLE_SHADOW_GRID_STEP);
+    float radius = CIRCLE_SHADOW_RADIUS
+    * CIRCLE_SHADOW_GRID_STEP
+    * pow(1.0 - diffuse, 2.0);
+
+    return circle(gridPos, vec2(CIRCLE_SHADOW_GRID_STEP * 0.5), radius);
+}
+
+
+vec3 applyTwoStepCelColor(vec3 baseColor, float diffuse)
+{
+    float cel = twoStepCel(diffuse);
+    float celLighting = mix(CEL_SHADOW_LIGHT, CEL_FULL_LIGHT, cel);
+
+    return baseColor * celLighting;
+}
+
+vec3 applyLightingWithCircleShadowsCel(vec3 baseColor, vec3 encodedNormal)
+{
+    float diffuse = computeDiffuse(vUV, encodedNormal);
+    vec3 celColor = applyTwoStepCelColor(baseColor, diffuse);
+
+    float shadowMask = circleShadowMask(diffuse) * objectMask(vUV);
+    vec3 shadowColor = max(celColor * CIRCLE_SHADOW_DARKNESS, vec3(CIRCLE_SHADOW_MIN_LIGHT));
+
+    return mix(celColor, shadowColor, shadowMask);
+}
 
 
 void main()
 {
+    vec3 baseColor = texture(colorTexture, vUV).rgb;
+    vec3 encodedNormal = texture(normalTexture, vUV).rgb;
+    float modelMask = objectMask(vUV);
+
+    if (debugMode >= 5 && debugMode <= 9 && modelMask < 0.5) {
+        fsColor = vec4(baseColor, 1.0);
+        return;
+    }
+
+    float diffuse = computeDiffuse(vUV, encodedNormal);
+    float cel = twoStepCel(diffuse);
+    float edge = sobelEdges(vUV);
+
+    //couleur brute
     if (debugMode == 0) {
-        vec3 baseColor = texture(colorTexture, vUV).rgb;
-        //vec3 encodedNormal = texture(normalTexture, vUV).rgb;
-        //fsColor = vec4(applyLighting(baseColor, encodedNormal), 1.0);
         fsColor = vec4(baseColor, 1.0);
     }
+    //normales
     else if (debugMode == 1) {
         fsColor = texture(normalTexture, vUV);
     }
+    //profondeur
     else if (debugMode == 2) {
         float depth = texture(depthTexture, vUV).r;
         fsColor = vec4(vec3(depth), 1.0);
-        //float depth = texture(depthTexture, vUV).r;
-        //float visibleDepth = (1.0 - depth) * 20.0;
-        //fsColor = vec4(vec3(visibleDepth), 1.0);
     }
+    //profondeur linearisee
     else if (debugMode == 3) {
-        float edge = sobelEdges(vUV);
+        float depth = texture(depthTexture, vUV).r;
+        float visibleDepth = 1.0 - smoothstep(
+            DEBUG_DEPTH_NEAR,
+            DEBUG_DEPTH_FAR,
+            linearDepth(depth)
+        );
+        fsColor = vec4(vec3(visibleDepth), 1.0);
+    }
+    //Sobel
+    else if (debugMode == 4) {
         fsColor = vec4(vec3(edge), 1.0);
     }
-    else if (debugMode == 4) {
-        float edge = sobelEdges(vUV);
-
-        vec3 encodedNormal = texture(normalTexture, vUV).rgb;
-
-        float diffuse = computeDiffuse(vUV, encodedNormal);
-
-        float dots = halftoneShadow(gl_FragCoord.xy, diffuse);
-
-        float rawDepth = texture(depthTexture, vUV).r;
-        float objectMask = 1.0 - step(0.9999, rawDepth);
-
-        dots *= objectMask;
-
-        float result = max(edge, dots);
-
-        fsColor = vec4(vec3(result), 1.0);
-    }
+    //diffuse
     else if (debugMode == 5) {
-        vec3 baseColor = texture(colorTexture, vUV).rgb;
-        vec3 encodedNormal = texture(normalTexture, vUV).rgb;
-        vec3 litColor = applyLighting(baseColor, encodedNormal);
-        float edge = sobelEdges(vUV);
-        fsColor = vec4(mix(litColor, vec3(0.0), edge), 1.0);
+        fsColor = vec4(vec3(diffuse), 1.0);
+    }
+    //two-step cel
+    else if (debugMode == 6) {
+        fsColor = vec4(vec3(cel), 1.0);
+    }
+    //couleur + two-step cel
+    else if (debugMode == 7) {
+        vec3 celColor = applyTwoStepCelColor(baseColor, diffuse);
+        fsColor = vec4(celColor, 1.0);
+    }
+    //ombres en points
+    else if (debugMode == 8) {
+        float shadowMask = circleShadowMask(diffuse);
+        fsColor = vec4(vec3(1.0 - shadowMask), 1.0);
+    }
+    //rendu final ombres en points + Sobel + couleur + two-step cel
+    else if (debugMode == 9) {
+        vec3 finalColor = applyLightingWithCircleShadowsCel(baseColor, encodedNormal);
+        fsColor = vec4(mix(finalColor, vec3(0.0), edge), 1.0);
     }
     else {
         fsColor = vec4(1.0, 0.0, 1.0, 1.0);
