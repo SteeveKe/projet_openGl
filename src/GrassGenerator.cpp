@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <vector>
 
-#include "PerlinNoise.h"
+#include "TerrainGenerator.h"
 
 void addCard(std::vector<float>& v, float px, float py, float pz, float angle)
 {
@@ -35,44 +35,42 @@ void add_grass(std::vector<float>& v, float px, float py, float pz)
     addCard(v, px, py, pz,  2.0f * 3.14159265f / 3.0f);
 }
 
-float terrain_height(float px, float pz)
-{
-    return perlinNoise(px * 0.2f, pz * 0.2f) * 0.4f - 0.9f;
-    //float h = 0.2f;
-    //h += perlinNoise(px * 0.08f, pz * 0.08f) * 1.2f;  // grandes collines
-    //h += perlinNoise(px * 0.25f, pz * 0.25f) * 0.3f;  // ondulations moyennes
-    //h += perlinNoise(px * 0.7f,  pz * 0.7f)  * 0.08f; // micro détails
-    //return h - 1.3f;
-}
 
 Mesh generateGrass(int count, float spread, const std::filesystem::path& texture_path)
 {
-    std::vector<float> vertices;
-    //const float groundY = -0.9f;
-
+    std::vector<float> templateVerts;
+    add_grass(templateVerts, 0.0f, 0.0f, 0.0f);
+    std::vector<float> instances;
+    instances.reserve(count * 4);
     for (int i = 0; i < count; i++) {
         const float px = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
         const float pz = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
-        add_grass(vertices, px, terrain_height(px, pz), pz);
+        const float angle = (float)rand() / RAND_MAX * 6.2831853f;
+        instances.push_back(px);
+        instances.push_back(terrainHeight(px, pz));
+        instances.push_back(pz);
+        instances.push_back(angle);
     }
 
     const GLuint texture = loadTexture(texture_path);
 
     Mesh mesh;
+    mesh.instanceCount = count;
 
     SubMesh subMesh;
     subMesh.firstVertex = 0;
-    subMesh.vertexCount = static_cast<GLsizei>(vertices.size() / 8);
+    subMesh.vertexCount = static_cast<GLsizei>(templateVerts.size() / 8);
     subMesh.texture = texture;
     subMesh.hasTexture = texture != 0;
     mesh.subMeshes.push_back(subMesh);
     mesh.vertexCount = subMesh.vertexCount;
 
     glGenVertexArrays(1, &mesh.vao);
-    glGenBuffers(1, &mesh.vbo);
     glBindVertexArray(mesh.vao);
+
+    glGenBuffers(1, &mesh.vbo);
     glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(float)), vertices.data(), GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(templateVerts.size() * sizeof(float)), templateVerts.data(), GL_STATIC_DRAW);
     constexpr GLsizei stride = 8 * sizeof(float);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, nullptr);
     glEnableVertexAttribArray(0);
@@ -80,6 +78,17 @@ Mesh generateGrass(int count, float spread, const std::filesystem::path& texture
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+    glGenBuffers(1, &mesh.instanceVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.instanceVbo);
+    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(instances.size() * sizeof(float)), instances.data(), GL_STATIC_DRAW);
+    constexpr GLsizei instanceStride = 4 * sizeof(float);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, instanceStride, nullptr);                              // pos xyz
+    glEnableVertexAttribArray(3);
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, instanceStride, reinterpret_cast<void*>(3 * sizeof(float))); // angle
+    glEnableVertexAttribArray(4);
+    glVertexAttribDivisor(4, 1);
+
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 

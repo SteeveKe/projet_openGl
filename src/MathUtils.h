@@ -10,3 +10,4 @@ Mat4 translate(float x, float y, float z);
 Mat4 rotateX(float angle);
 Mat4 rotateY(float angle);
 Mat4 perspective(float fovRadians, float aspect, float nearPlane, float farPlane);
+Mat4 scale(float s);

@@ -210,10 +210,20 @@ float sobelEdges(vec2 uv)
 void main()
 {
     if (debugMode == 0) {
+
+        // ciel
+        float rawDepth = texture(depthTexture, vUV).r;
+        if (rawDepth >= 0.9999) { // tres loin
+            vec3 skyTop = vec3(0.30, 0.52, 0.80);
+            vec3 skyHorizon = vec3(0.72, 0.86, 0.96);
+            fsColor = vec4(mix(skyHorizon, skyTop, vUV.y), 1.0);
+            return;
+        }
+
         vec3 baseColor = texture(colorTexture, vUV).rgb;
-        //vec3 encodedNormal = texture(normalTexture, vUV).rgb;
-        //fsColor = vec4(applyLighting(baseColor, encodedNormal), 1.0);
-        fsColor = vec4(baseColor, 1.0);
+        vec3 encodedNormal = texture(normalTexture, vUV).rgb;
+        fsColor = vec4(applyLighting(baseColor, encodedNormal), 1.0);
+        //fsColor = vec4(baseColor, 1.0);
     }
     else if (debugMode == 1) {
         fsColor = texture(normalTexture, vUV);
@@ -253,6 +263,37 @@ void main()
         vec3 litColor = applyLighting(baseColor, encodedNormal);
         float edge = sobelEdges(vUV);
         fsColor = vec4(mix(litColor, vec3(0.0), edge), 1.0);
+    }
+    else if (debugMode == 6) {
+        float rawDepth = texture(depthTexture, vUV).r;
+        if (rawDepth >= 0.9999) {
+            vec3 skyTop     = vec3(0.30, 0.52, 0.80);
+            vec3 skyHorizon = vec3(0.90, 0.95, 0.98);
+            //vec3 skyHorizon = vec3(0.72, 0.86, 0.96);
+            fsColor = vec4(mix(skyHorizon, skyTop, vUV.y), 1.0);
+            return;
+        }
+
+        vec3 baseColor = texture(colorTexture, vUV).rgb;
+        vec3 encodedNormal = texture(normalTexture, vUV).rgb;
+        baseColor = applyLighting(baseColor, encodedNormal);
+
+        // 1. couleur ambiante
+        baseColor = baseColor * 0.55 + 0.18;
+
+        // 2. léger voile blanc-bleu sur toute la scène
+        vec3 haze = vec3(0.88, 0.93, 0.98);
+        baseColor = mix(baseColor, haze, 0.1);
+
+        // 3. faux bloom, les zones claires rayonnent un peu
+        float brightness = dot(baseColor, vec3(0.299, 0.587, 0.114));
+        baseColor += baseColor * pow(brightness, 7.0) * 0.6;
+
+        //// 4. tone mapping doux, évite la surexposition
+        //baseColor = baseColor / (baseColor + vec3(0.95));
+        //baseColor *= 1.4;
+
+        fsColor = vec4(baseColor, 1.0);
     }
     else {
         fsColor = vec4(1.0, 0.0, 1.0, 1.0);

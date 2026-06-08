@@ -1,0 +1,143 @@
+Material 0:
+Textures: link_00
+Meshes: nodes_135_
+
+Material 1:
+Textures: link_01g
+Meshes: nodes_93_, nodes_136_, nodes_140_
+
+Material 2:
+Textures: p_tex07, p_tex07a
+Meshes: nodes_143_
+
+Material 3:
+Textures: p_tex07, p_tex07a
+Meshes: nodes_144_
+
+Material 4:
+Textures: p_tex27
+Meshes: nodes_134_
+
+Material 5:
+Textures: p_tex05
+Meshes: nodes_94_, nodes_96_
+
+Material 6:
+Textures: p_tex11, p_tex11a
+Meshes: nodes_27_, nodes_31_, nodes_32_, nodes_38_, nodes_98_, nodes_132_
+
+Material 7:
+Textures: p_tex09
+Meshes: nodes_53_, nodes_63_, nodes_68_, nodes_114_, nodes_122_
+
+Material 8:
+Textures: p_tex09
+Meshes: nodes_48_, nodes_59_, nodes_71_, nodes_117_, nodes_123_
+
+Material 9:
+Textures: p_tex09, p_tex09a
+Meshes: nodes_112_, nodes_120_
+
+Material 10:
+Textures: p_tex09
+Meshes: nodes_54_, nodes_64_, nodes_69_, nodes_115_, nodes_121_
+
+Material 11:
+Textures: p_tex09, p_tex14a
+Meshes: nodes_55_, nodes_65_, nodes_70_, nodes_116_, nodes_124_
+
+Material 12:
+Textures: p_tex09
+Meshes: nodes_52_, nodes_62_, nodes_67_, nodes_113_, nodes_119_
+
+Material 13:
+Textures: p_tex26
+Meshes: nodes_133_
+
+Material 14:
+Textures: p_tex12, p_tex08a
+Meshes: nodes_40_, nodes_41_, nodes_43_, nodes_79_, nodes_80_, nodes_82_
+
+Material 15:
+Textures: p_tex12, p_tex12b
+Meshes: nodes_42_, nodes_44_, nodes_81_, nodes_83_
+
+Material 16:
+Textures: link_e00
+Meshes: nodes_141_
+
+Material 17:
+Textures: link_m00
+Meshes: nodes_137_
+
+Material 18:
+Textures: link_f00
+Meshes: nodes_138_, nodes_142_
+
+Material 19:
+Textures: link_f01
+Meshes: nodes_139_
+
+Material 20:
+Textures: p_tex10
+Meshes: nodes_102_
+
+Material 21:
+Textures: p_tex10, p_tex10a
+Meshes: nodes_103_
+
+Material 22:
+Textures: p_tex01
+Meshes: nodes_72_, nodes_73_, nodes_76_, nodes_84_, nodes_85_, nodes_88_, nodes_89_, nodes_91_, nodes_95_, nodes_97_, nodes_101_, nodes_105_, nodes_107_, nodes_111_, nodes_118_, nodes_126_, nodes_128_, nodes_130_
+
+Material 23:
+Textures: p_tex14, p_tex14a
+Meshes: nodes_74_, nodes_86_
+
+Material 24:
+Textures: p_tex15, p_tex15a
+Meshes: nodes_109_, nodes_110_
+
+Material 25:
+Textures: p_tex06, p_tex06a
+Meshes: nodes_108_
+
+Material 26:
+Textures: p_tex06, p_tex06b
+Meshes: nodes_104_, nodes_106_
+
+Material 27:
+Textures: p_tex08
+Meshes: nodes_28_, nodes_34_, nodes_75_, nodes_99_
+
+Material 28:
+Textures: p_tex08, p_tex08b
+Meshes: nodes_29_, nodes_36_, nodes_78_, nodes_100_
+
+Material 29:
+Textures: p_tex08, p_tex08a
+Meshes: nodes_77_
+
+Material 30:
+Textures: p_tex28
+Meshes: nodes_45_, nodes_51_, nodes_56_, nodes_58_, nodes_61_, nodes_66_
+
+Material 31:
+Textures: p_tex03, btr_torch4_2_TX, p_tex03a
+Meshes: nodes_35_, nodes_39_, nodes_47_, nodes_50_, nodes_127_
+
+Material 32:
+Textures: p_tex03, p_tex03b
+Meshes: nodes_33_, nodes_37_, nodes_46_, nodes_49_, nodes_125_
+
+Material 33:
+Textures: p_tex04, p_tex04a
+Meshes: nodes_129_, nodes_131_
+
+Material 34:
+Textures: p_tex02, p_tex02a, p_tex02c
+Meshes: nodes_26_, nodes_30_, nodes_57_, nodes_60_, nodes_87_
+
+Material 35:
+Textures: p_tex16
+Meshes: nodes_90_, nodes_92_

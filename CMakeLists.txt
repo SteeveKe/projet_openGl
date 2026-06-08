@@ -16,6 +16,9 @@ add_executable(openGl
         src/Texture.cpp
         src/FrameBuffer.cpp
         src/FrameBuffer.h
+        src/Camera.cpp
+        src/RockGenerator.cpp
+        src/TreeGenerator.cpp
         src/GrassGenerator.cpp
         src/TerrainGenerator.cpp
 )

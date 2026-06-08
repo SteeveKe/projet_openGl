@@ -3,19 +3,40 @@
 
 #include <GL/glew.h>
 
+#include <cmath>
 #include <vector>
+
+//float h = 0.2f;
+//h += perlinNoise(px * 0.08f, pz * 0.08f) * 1.2f;  // grandes collines
+//h += perlinNoise(px * 0.25f, pz * 0.25f) * 0.3f;  // ondulations moyennes
+//h += perlinNoise(px * 0.7f,  pz * 0.7f)  * 0.08f; // micro détails
+//return h - 1.3f;
+static float mix(float a, float b, float t)
+{
+    return a + t * (b - a);
+}
+
+static float smoothstep(float edge0, float edge1, float x)
+{
+    float t = std::fmax(0.0f, std::fmin(1.0f, (x - edge0) / (edge1 - edge0)));
+    return t * t * (3.0f - 2.0f * t);
+}
 
 float terrainHeight(float px, float pz)
 {
-    return perlinNoise(px * 0.5f, pz * 0.5f) * 0.4f - 0.9f;
-    //float h = 0.2f;
-    //h += perlinNoise(px * 0.08f, pz * 0.08f) * 1.2f;  // grandes collines
-    //h += perlinNoise(px * 0.25f, pz * 0.25f) * 0.3f;  // ondulations moyennes
-    //h += perlinNoise(px * 0.7f,  pz * 0.7f)  * 0.08f; // micro détails
-    //return h - 1.3f;
+    float ridge = 1.0f - std::abs(perlinNoise(px*0.1f, pz*0.1f));
+    ridge = ridge * ridge;
+
+    float dist = sqrt(px * px + pz * pz);
+    float mt = smoothstep(5.0f, 50.0f, dist);
+    float flat =  perlinNoise(px * 0.5f, pz * 0.5f) * 0.4f - 0.9f;
+
+    //float flat = perlinNoise(px*0.08f, pz*0.08f) * 0.5f;
+    float mountain = perlinNoise(px*0.15f, pz*0.15f) * 3.0f; // beaucoup plus haut
+    return mix(flat, mountain * ridge, mt) - 0.3f;
 }
 
-// on l'approxime en regardant les hauteurs des voisins gauche/droite/haut/bas
+// regarde les hauteurs des voisins gauche/droite/haut/bas
 static std::array<float, 3> computeNormal(float x, float z, float step)
 {
     float hL = terrainHeight(x - step, z);  
@@ -85,8 +106,8 @@ Mesh generateTerrain(int resolution, float size)
     SubMesh subMesh;
     subMesh.firstVertex = 0;
     subMesh.vertexCount = static_cast<GLsizei>(vertices.size() / 8);
-    //subMesh.color = {0.35f, 0.28f, 0.15f};  // marron
-    subMesh.color = {0.13f, 0.45f, 0.08f};  // vert zelda
+    subMesh.color = {0.35f, 0.28f, 0.15f};  // marron
+    //subMesh.color = {0.13f, 0.45f, 0.08f};  // vert zelda
 
     subMesh.hasTexture = false;
 
