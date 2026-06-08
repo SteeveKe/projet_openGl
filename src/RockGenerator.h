@@ -11,4 +11,4 @@ struct RockField {
     std::vector<Mat4> transforms;
 };
 
-RockField generateRocks(int count, float spread, const std::filesystem::path& objPath);
+RockField generateRocks(int count, float spread, const std::filesystem::path& objPath, float scaleMin = 0.15f, float scaleMax = 0.35f);

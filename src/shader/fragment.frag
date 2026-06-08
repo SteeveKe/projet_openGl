@@ -6,6 +6,7 @@ layout(location = 1) out vec4 outNormal;
 uniform vec3 uColor;
 uniform bool uUseTexture;
 uniform sampler2D uTexture;
+uniform int uSobelMask; // 1 = Sobel actif, 0 = pas de Sobel
 
 in vec3 vNormal;
 in vec2 vTexCoord;
@@ -72,6 +73,6 @@ void main()
     outColor = vec4(baseColor, 1.0);
 
     vec3 encodedNormal = n * 0.5 + 0.5;
-    outNormal = vec4(encodedNormal, 1.0);
+    outNormal = vec4(encodedNormal, uSobelMask == 1 ? 1.0 : 0.5); // 1.0=Sobel, 0.5=no Sobel, 0.0=herbe
 
 }

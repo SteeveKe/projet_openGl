@@ -3,11 +3,10 @@
 #include "MathUtils.h"
 
 struct Camera {
-    float yaw   =  0.0f;   // rotation horizontale (gauche/droite)
-    float pitch = -0.28f;  // rotation verticale (légèrement vers le bas)
-    float x = 0.0f;
-    float y = -0.2f;       // proche du sol
-    float z = 1.5f;        // proche du personnage
+    float yaw    =  0.0f;
+    float pitch  =  0.3f;
+    float radius =  1.6f;
+    float targetY = -0.7f;
 
     float speed = 0.05f;
 
@@ -15,6 +14,8 @@ struct Camera {
     void rotateRight() { yaw   -= speed; }
     void rotateUp()    { pitch += speed; if (pitch >  1.4f) pitch =  1.4f; }
     void rotateDown()  { pitch -= speed; if (pitch < -1.4f) pitch = -1.4f; }
+    void zoomIn()      { radius -= 0.3f; if (radius < 0.5f)  radius = 0.5f;  }
+    void zoomOut()     { radius += 0.3f; if (radius > 20.0f) radius = 20.0f; }
 
     Mat4 viewMatrix() const;
 };

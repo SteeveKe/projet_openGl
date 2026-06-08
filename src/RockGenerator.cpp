@@ -4,7 +4,7 @@
 
 #include <cstdlib>
 
-RockField generateRocks(int count, float spread, const std::filesystem::path& objPath)
+RockField generateRocks(int count, float spread, const std::filesystem::path& objPath, float scaleMin, float scaleMax)
 {
     RockField field;
     field.mesh = loadObjModel(objPath);
@@ -13,7 +13,7 @@ RockField generateRocks(int count, float spread, const std::filesystem::path& ob
         float px    = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
         float pz    = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
         float angle = (float)rand() / RAND_MAX * 6.28318f;
-        float s     = 0.15f + (float)rand() / RAND_MAX * 0.2f;
+        float s     = scaleMin + (float)rand() / RAND_MAX * (scaleMax - scaleMin);
 
         Mat4 t = multiply(translate(px, terrainHeight(px, pz), pz),
                   multiply(rotateY(angle), scale(s)));

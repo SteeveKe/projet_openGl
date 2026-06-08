@@ -13,6 +13,7 @@
 
 #include <filesystem>
 #include <iostream>
+#include <cmath>
 #include <vector>
 
 #include "FrameBuffer.h"
@@ -35,8 +36,12 @@ Camera camera;
 GLuint shaderProgram = 0;
 GLuint grassShaderProgram = 0;
 Mesh modelMesh;
+Mesh ironManMesh;
+Mesh linkMesh;
+bool useIronMan = false;
 Mesh grassMesh;
 RockField rocks;
+RockField bushes;
 TreeField trees;
 TreeField trees2;
 //terrain
@@ -49,7 +54,7 @@ float mouseX = 0.5f;
 float mouseY = 0.5f;
 
 constexpr int minDebugMode = 0;
-constexpr int maxDebugMode = 11;
+constexpr int maxDebugMode = 13;
 int debugMode = 10;
 
 // Framebuffer custom : on rend le modele dedans avant le post-process.
@@ -73,10 +78,52 @@ void update()
     glutPostRedisplay();
 }
 
+
+static bool isDragging = false;
+static int lastDragX = 0;
+static int lastDragY = 0;
+
+void mouseButton(int button, int state, int x, int y)
+{
+    if (button == GLUT_LEFT_BUTTON) {
+        isDragging = (state == GLUT_DOWN);
+        lastDragX = x;
+        lastDragY = y;
+    }
+    if (button == 3 && state == GLUT_DOWN) camera.zoomIn();
+    if (button == 4 && state == GLUT_DOWN) camera.zoomOut();
+}
+
 void mouseMove(int x, int y)
 {
     mouseX = static_cast<float>(x) / static_cast<float>(windowWidth);
     mouseY = 1.0f - static_cast<float>(y) / static_cast<float>(windowHeight);
+}
+
+void mouseDrag(int x, int y)
+{
+    if (isDragging) {
+        int dx = x - lastDragX;
+        int dy = y - lastDragY;
+        camera.yaw   -= dx * 0.005f;
+        camera.pitch += dy * 0.005f;
+        if (camera.pitch >  1.4f) camera.pitch =  1.4f;
+        if (camera.pitch < -1.4f) camera.pitch = -1.4f;
+        lastDragX = x;
+        lastDragY = y;
+    }
+    mouseX = static_cast<float>(x) / static_cast<float>(windowWidth);
+    mouseY = 1.0f - static_cast<float>(y) / static_cast<float>(windowHeight);
+}
+
+void keyboard(unsigned char key, int, int)
+{
+    if (key == ' ') {
+        useIronMan = !useIronMan;
+        modelMesh  = useIronMan ? ironManMesh : linkMesh;
+        std::cout << "modele : " << (useIronMan ? "Iron Man" : "Link") << std::endl;
+        glutPostRedisplay();
+    }
 }
 
 void specialKeys(int key, int, int)
@@ -123,9 +170,9 @@ void display()
     const float aspect = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
     const Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 100.0f);
     //const Mat4 view = translate(0.0f, 0.0f, -3.0f);
-    const Mat4 view = camera.viewMatrix();
-    //const Mat4 model = multiply(rotateY(time * 1.0f), rotateX(time * 0.0f));
     const float linkX = 0.0f, linkZ = 0.0f;
+    camera.targetY = terrainHeight(linkX, linkZ) + 0.5f;
+    const Mat4 view = camera.viewMatrix();
     const Mat4 model = multiply(translate(linkX, terrainHeight(linkX, linkZ) + 0.3f, linkZ),
                        multiply(rotateY(3.14159265f), scale(0.3f)));
     const Mat4 mvp = multiply(projection, multiply(view, model));
@@ -135,6 +182,7 @@ void display()
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, mvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, model.data());
     glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uSobelMask"), 1);
 
     glBindVertexArray(modelMesh.vao);
     for (const SubMesh& subMesh : modelMesh.subMeshes) {
@@ -157,6 +205,7 @@ void display()
     const Mat4 terrainModel = identity();
     const Mat4 terrainMvp = multiply(projection, multiply(view, terrainModel));
     glUseProgram(shaderProgram);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uSobelMask"), 0);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, terrainMvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, terrainModel.data());
     glBindVertexArray(terrainMesh.vao);
@@ -168,6 +217,7 @@ void display()
     glBindVertexArray(0);
 
     // pierres
+    glUniform1i(glGetUniformLocation(shaderProgram, "uSobelMask"), 0);
     glBindVertexArray(rocks.mesh.vao);
     for (const Mat4& rockModel : rocks.transforms) {
         const Mat4 rockMvp = multiply(projection, multiply(view, rockModel));
@@ -187,7 +237,29 @@ void display()
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    // buissons
+    glUniform1i(glGetUniformLocation(shaderProgram, "uSobelMask"), 0);
+    glBindVertexArray(bushes.mesh.vao);
+    for (const Mat4& bushModel : bushes.transforms) {
+        const Mat4 bushMvp = multiply(projection, multiply(view, bushModel));
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"),   1, GL_FALSE, bushMvp.data());
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, bushModel.data());
+        for (const SubMesh& subMesh : bushes.mesh.subMeshes) {
+            glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, subMesh.color.data());
+            glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), subMesh.hasTexture ? 1 : 0);
+            if (subMesh.hasTexture) {
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, subMesh.texture);
+                glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+            }
+            glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
+        }
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     // arbres
+    glUniform1i(glGetUniformLocation(shaderProgram, "uSobelMask"), 0);
     glBindVertexArray(trees.mesh.vao);
     for (const Mat4& treeModel : trees.transforms) {
         const Mat4 treeMvp = multiply(projection, multiply(view, treeModel));
@@ -329,14 +401,14 @@ int main(int argc, char** argv)
     //terrain
     terrainMesh = generateTerrain(100, 100.0f);
 
-    // link
-    //modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "IronMan.obj");
-    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "link/3DS - The Legend of Zelda_ Ocarina of Time 3D - Playable Characters - Link (Adult)/link.obj");
+    ironManMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "IronMan.obj");
+    linkMesh    = loadObjModel(std::filesystem::path(MODEL_DIR) / "link/3DS - The Legend of Zelda_ Ocarina of Time 3D - Playable Characters - Link (Adult)/link.obj");
+    modelMesh   = linkMesh;
 
     srand(42);
-    rocks = generateRocks(40, 10.0f, std::filesystem::path(MODEL_DIR) / "rock2/Modeling Clay Rock/clayrock.obj");
-    //trees  = generateTrees(0,  15.0f, std::filesystem::path(MODEL_DIR) / "tree/叫ぶ木 (Debug)/o00_7100.obj");
-    //trees2 = generateTrees(0, 30.0f, std::filesystem::path(MODEL_DIR) / "tree2/Willow Tree/treewillow_tslocator_gmdc.obj");
+    rocks  = generateRocks(40, 10.0f, std::filesystem::path(MODEL_DIR) / "rock2/Modeling Clay Rock/clayrock.obj");
+    //trees  = generateTrees(10,  15.0f, std::filesystem::path(MODEL_DIR) / "tree/叫ぶ木 (Debug)/o00_7100.obj");
+    //trees2 = generateTrees(10, 20.0f, std::filesystem::path(MODEL_DIR) / "tree2/Willow Tree/treewillow_tslocator_gmdc.obj");
 
     glEnable(GL_DEPTH_TEST);
 
@@ -352,8 +424,10 @@ int main(int argc, char** argv)
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
     glutIdleFunc(update);
+    glutMouseFunc(mouseButton);
     glutPassiveMotionFunc(mouseMove);
-    glutMotionFunc(mouseMove);
+    glutMotionFunc(mouseDrag);
+    glutKeyboardFunc(keyboard);
     glutSpecialFunc(specialKeys);
     glutMainLoop();
 

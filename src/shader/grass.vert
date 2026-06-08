@@ -33,7 +33,9 @@ void main()
     float holeScale = noise(aInstancePos.xz * 0.9);
     float heightScale = (0.1 + hash(aInstancePos.xz) * 0.76);
     if (holeScale < 0.4) 
-        heightScale = (0.1 + hash(aInstancePos.xz) * 0.3);
+        heightScale = (0.1 + hash(aInstancePos.xz) * 0.5);
+    if (holeScale < 0.3) 
+        heightScale = (0.1 + hash(aInstancePos.xz) * 0.2);
 
     // rotation Y par l'angle de l'instance
     float c = cos(aInstanceAngle);

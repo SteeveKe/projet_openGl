@@ -29,7 +29,8 @@ const float CEL_SHADOW_LIGHT = 0.30;
 const float CEL_FULL_LIGHT = 1.00;
 
 //Intensite du noir des contours Sobel (0.0 = noir pur, 1.0 = pas de contour)
-const float SOBEL_EDGE_DARKNESS = 0.45;
+//const float SOBEL_EDGE_DARKNESS = 0.45;
+const float SOBEL_EDGE_DARKNESS = 0.25;
 
 //Seuils du two-step cel
 const float CEL_STEP_1 = 0.33;
@@ -126,8 +127,8 @@ vec3 bottomRight
 
 float sobelEdges(vec2 uv)
 {
-    // alpha=0 -> pas de Sobel
-    if (texture(normalTexture, uv).a < 0.5) return 0.0;
+    // alpha < 0.75 -> pas de Sobel (herbe alpha=0, terrain alpha=0.5, personnage/rochers alpha=1)
+    if (texture(normalTexture, uv).a < 0.75) return 0.0;
 
     float outlineSize = 1.0;
     vec2 texel = outlineSize / vec2(textureSize(colorTexture, 0));
@@ -251,7 +252,7 @@ void main()
     vec3 encodedNormal = texture(normalTexture, vUV).rgb;
     float modelMask = objectMask(vUV);
 
-    if ((debugMode >= 5 && debugMode <= 9 || debugMode == 11) && modelMask < 0.5) {
+    if ((debugMode >= 5 && debugMode <= 9) && modelMask < 0.5) {
         fsColor = vec4(baseColor, 1.0);
         return;
     }
@@ -322,41 +323,97 @@ void main()
         vec3 finalColor = applyLightingWithCircleShadowsCel(baseColor, encodedNormal);
         fsColor = vec4(mix(finalColor, vec3(0.0), edge), 1.0);
     }
-    //cel two-step + Sobel doux
-    else if (debugMode == 11) {
-        vec3 celColor = applyTwoStepCelColor(baseColor, diffuse);
-        fsColor = vec4(mix(celColor, celColor * SOBEL_EDGE_DARKNESS, edge), 1.0);
-    }
     else if (debugMode == 10) {
         float rawDepth = texture(depthTexture, vUV).r;
         if (rawDepth >= 0.9999) {
-            vec3 skyTop     = vec3(0.30, 0.52, 0.80);
-            vec3 skyHorizon = vec3(0.90, 0.95, 0.98);
-            //vec3 skyHorizon = vec3(0.72, 0.86, 0.96);
+            vec3 skyTop     = vec3(0.36, 0.58, 0.88);
+            vec3 skyHorizon = vec3(0.74, 0.88, 0.97);
             fsColor = vec4(mix(skyHorizon, skyTop, vUV.y), 1.0);
             return;
         }
 
-        vec3 litColor = applyLighting(baseColor, encodedNormal);
+        float diffuse13 = computeDiffuse(vUV, encodedNormal);
 
-        // 1. couleur ambiante
-        litColor = litColor * 0.55 + vec3(0.22, 0.18, 0.25);
-        //litColor = litColor * 0.55 + 0.18;
+        // Herbe : diffuse lisse + pastel doux (dreamy, pas de cel)
+        if (texture(normalTexture, vUV).a < 0.25) {
+            vec3 grassColor = baseColor * (0.55 + diffuse13 * 0.45);
+            grassColor *= mix(vec3(1.0), vec3(1.04, 1.02, 0.94), diffuse13);
+            grassColor = mix(grassColor, vec3(0.84, 0.96, 0.72), 0.13);
+            grassColor = grassColor / (grassColor + vec3(0.85));
+            grassColor *= 1.34;
+            fsColor = vec4(grassColor, 1.0);
+            return;
+        }
 
-        // 2. léger voile blanc-bleu sur toute la scène
-        //vec3 haze = vec3(0.88, 0.93, 0.98);
-        vec3 haze = vec3(0.98, 0.95, 0.98);
-        litColor = mix(litColor, haze, 0.1);
+        vec3 normal13 = decodeNormal(encodedNormal);
+        float hemi13 = normal13.y * 0.5 + 0.5;
+        vec3 ambient13 = mix(vec3(0.22, 0.18, 0.14), vec3(0.32, 0.46, 0.76), hemi13);
+        vec3 litColor13 = baseColor * (ambient13 + vec3(1.15, 0.98, 0.70) * diffuse13);
 
-        // 3. faux bloom, les zones claires rayonnent un peu
-        float brightness = dot(litColor, vec3(0.299, 0.587, 0.114));
-        litColor += litColor * pow(brightness, 7.0) * 0.6;
+        // Ombres colorees bleu-violet
+        vec3 shadowTint13 = vec3(0.13, 0.10, 0.24);
+        float inShadow13  = 1.0 - clamp(diffuse13 * 1.5 + hemi13 * 0.4, 0.0, 1.0);
+        litColor13 = mix(litColor13, litColor13 * 0.25 + shadowTint13, inShadow13 * 0.55);
 
-        //// 4. tone mapping doux, évite la surexposition
-        //litColor = litColor / (litColor + vec3(0.95));
-        //litColor *= 1.4;
+        // Bloom doux
+        float bright13 = dot(litColor13, vec3(0.299, 0.587, 0.114));
+        litColor13 += litColor13 * pow(bright13, 5.0) * 0.35;
 
-        fsColor = vec4(mix(litColor, litColor * SOBEL_EDGE_DARKNESS, edge), 1.0);
+        // Tonemapping Reinhard
+        litColor13 = litColor13 / (litColor13 + vec3(0.85));
+        litColor13 *= 1.4;
+
+        // Brouillard
+        float depth13     = linearDepth(rawDepth);
+        float fogFactor13 = smoothstep(20.0, 65.0, depth13);
+        litColor13 = mix(litColor13, vec3(0.62, 0.78, 0.95), fogFactor13);
+
+        // Sobel
+        fsColor = vec4(mix(litColor13, litColor13 * SOBEL_EDGE_DARKNESS, edge * 0.6), 1.0);
+    }
+    else if (debugMode == 11) {
+        float rawDepth = texture(depthTexture, vUV).r;
+        if (rawDepth >= 0.9999) {
+            vec3 skyTop     = vec3(0.36, 0.58, 0.88);
+            vec3 skyHorizon = vec3(0.74, 0.88, 0.97);
+            fsColor = vec4(mix(skyHorizon, skyTop, vUV.y), 1.0);
+            return;
+        }
+
+        float diffuse13 = computeDiffuse(vUV, encodedNormal);
+
+        // Herbe : diffuse lisse + pastel doux (dreamy, pas de cel)
+        if (texture(normalTexture, vUV).a < 0.25) {
+            vec3 grassColor = baseColor * (0.55 + diffuse13 * 0.45);
+            grassColor *= mix(vec3(1.0), vec3(1.04, 1.02, 0.94), diffuse13);
+            grassColor = mix(grassColor, vec3(0.84, 0.96, 0.72), 0.13);
+            grassColor = grassColor / (grassColor + vec3(0.85));
+            grassColor *= 1.34;
+            fsColor = vec4(grassColor, 1.0);
+            return;
+        }
+
+        vec3 normal13 = decodeNormal(encodedNormal);
+        float hemi13 = normal13.y * 0.5 + 0.5;
+        vec3 ambient13 = mix(vec3(0.22, 0.18, 0.14), vec3(0.32, 0.46, 0.76), hemi13);
+        vec3 litColor13 = baseColor * (ambient13 + vec3(1.15, 0.98, 0.70) * diffuse13);
+
+        // Ombres colorees violet
+        vec3 shadowTint13 = vec3(0.13, 0.10, 0.24);
+        float inShadow13  = 1.0 - clamp(diffuse13 * 1.5 + hemi13 * 0.4, 0.0, 1.0);
+        litColor13 = mix(litColor13, litColor13 * 0.25 + shadowTint13, inShadow13 * 0.55);
+
+        // Tonemapping Reinhard
+        litColor13 = litColor13 / (litColor13 + vec3(0.85));
+        litColor13 *= 1.4;
+
+        // Brouillard
+        float depth13     = linearDepth(rawDepth);
+        float fogFactor13 = smoothstep(20.0, 65.0, depth13);
+        litColor13 = mix(litColor13, vec3(0.62, 0.78, 0.95), fogFactor13);
+
+        // Sobel
+        fsColor = vec4(mix(litColor13, litColor13 * SOBEL_EDGE_DARKNESS, edge * 0.0), 1.0);
     }
     else {
         fsColor = vec4(1.0, 0.0, 1.0, 1.0);
