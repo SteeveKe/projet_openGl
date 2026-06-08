@@ -28,6 +28,9 @@ const float CIRCLE_SHADOW_MIN_LIGHT = 0.05;
 const float CEL_SHADOW_LIGHT = 0.30;
 const float CEL_FULL_LIGHT = 1.00;
 
+//Intensite du noir des contours Sobel (0.0 = noir pur, 1.0 = pas de contour)
+const float SOBEL_EDGE_DARKNESS = 0.45;
+
 //Seuils du two-step cel
 const float CEL_STEP_1 = 0.33;
 const float CEL_STEP_2 = 0.66;
@@ -238,7 +241,8 @@ vec3 applyLightingWithCircleShadowsCel(vec3 baseColor, vec3 encodedNormal)
 vec3 applyLighting(vec3 color, vec3 encodedNormal)
 {
     float diffuse = computeDiffuse(vUV, encodedNormal);
-    return color * (0.25 + diffuse * 0.75);
+    return color * (0.25 + diffuse * 0.55);
+    //return color * (0.25 + diffuse * 0.75);
 }
 
 void main()
@@ -247,7 +251,7 @@ void main()
     vec3 encodedNormal = texture(normalTexture, vUV).rgb;
     float modelMask = objectMask(vUV);
 
-    if (debugMode >= 5 && debugMode <= 9 && modelMask < 0.5) {
+    if ((debugMode >= 5 && debugMode <= 9 || debugMode == 11) && modelMask < 0.5) {
         fsColor = vec4(baseColor, 1.0);
         return;
     }
@@ -318,6 +322,11 @@ void main()
         vec3 finalColor = applyLightingWithCircleShadowsCel(baseColor, encodedNormal);
         fsColor = vec4(mix(finalColor, vec3(0.0), edge), 1.0);
     }
+    //cel two-step + Sobel doux
+    else if (debugMode == 11) {
+        vec3 celColor = applyTwoStepCelColor(baseColor, diffuse);
+        fsColor = vec4(mix(celColor, celColor * SOBEL_EDGE_DARKNESS, edge), 1.0);
+    }
     else if (debugMode == 10) {
         float rawDepth = texture(depthTexture, vUV).r;
         if (rawDepth >= 0.9999) {
@@ -331,10 +340,12 @@ void main()
         vec3 litColor = applyLighting(baseColor, encodedNormal);
 
         // 1. couleur ambiante
-        litColor = litColor * 0.55 + 0.18;
+        litColor = litColor * 0.55 + vec3(0.22, 0.18, 0.25);
+        //litColor = litColor * 0.55 + 0.18;
 
         // 2. léger voile blanc-bleu sur toute la scène
-        vec3 haze = vec3(0.88, 0.93, 0.98);
+        //vec3 haze = vec3(0.88, 0.93, 0.98);
+        vec3 haze = vec3(0.98, 0.95, 0.98);
         litColor = mix(litColor, haze, 0.1);
 
         // 3. faux bloom, les zones claires rayonnent un peu
@@ -345,7 +356,7 @@ void main()
         //litColor = litColor / (litColor + vec3(0.95));
         //litColor *= 1.4;
 
-        fsColor = vec4(litColor, 1.0);
+        fsColor = vec4(mix(litColor, litColor * SOBEL_EDGE_DARKNESS, edge), 1.0);
     }
     else {
         fsColor = vec4(1.0, 0.0, 1.0, 1.0);

@@ -49,7 +49,7 @@ float mouseX = 0.5f;
 float mouseY = 0.5f;
 
 constexpr int minDebugMode = 0;
-constexpr int maxDebugMode = 10;
+constexpr int maxDebugMode = 11;
 int debugMode = 10;
 
 // Framebuffer custom : on rend le modele dedans avant le post-process.
