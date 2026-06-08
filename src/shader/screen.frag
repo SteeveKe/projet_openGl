@@ -123,6 +123,9 @@ vec3 bottomRight
 
 float sobelEdges(vec2 uv)
 {
+    // alpha=0 -> pas de Sobel
+    if (texture(normalTexture, uv).a < 0.5) return 0.0;
+
     float outlineSize = 1.0;
     vec2 texel = outlineSize / vec2(textureSize(colorTexture, 0));
 

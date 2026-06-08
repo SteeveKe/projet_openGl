@@ -64,7 +64,7 @@ void main()
 
     // normal
     vec3 n = normalize(vNormal);
-    outNormal = vec4(0.5, 1.0, 0.5, 1.0);
+    outNormal = vec4(0.5, 1.0, 0.5, 0.0); // alpha=0 -> "herbe" pour le Sobel
 
 }
 //outColor = vec4(texColor.rgb, 1.0);
