@@ -66,6 +66,15 @@ Mat4 rotateY(float angle)
     return result;
 }
 
+Mat4 scale(float s)
+{
+    Mat4 result = identity();
+    result[0]  = s;
+    result[5]  = s;
+    result[10] = s;
+    return result;
+}
+
 Mat4 perspective(float fovRadians, float aspect, float nearPlane, float farPlane)
 {
     const float f = 1.0f / std::tan(fovRadians * 0.5f);

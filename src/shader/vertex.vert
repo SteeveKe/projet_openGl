@@ -9,6 +9,8 @@ uniform mat4 uModel;
 
 out vec3 vNormal;
 out vec2 vTexCoord;
+out float vHeight;
+out float vDist;
 
 void main()
 {
@@ -17,4 +19,8 @@ void main()
     vNormal = normalize(normalMatrix * normal);
 
     vTexCoord = texCoord;
+    vHeight = (uModel * vec4(position, 1.0)).y;
+    vec3 worldPos = (uModel * vec4(position, 1.0)).xyz;
+    vDist = length(worldPos.xz); // distance horizontale depuis l'origine
+    //vColor = normalize(vNormal) * 0.5 + 0.5;
 }

@@ -16,6 +16,8 @@ struct SubMesh {
 struct Mesh {
     GLuint vao = 0;
     GLuint vbo = 0;
+    GLuint instanceVbo = 0;
     GLsizei vertexCount = 0;
+    GLsizei instanceCount = 0;
     std::vector<SubMesh> subMeshes;
 };
