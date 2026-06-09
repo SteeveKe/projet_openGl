@@ -6,10 +6,15 @@ out vec4 fsColor;
 uniform sampler2D colorTexture;
 uniform sampler2D normalTexture;
 uniform sampler2D depthTexture;
+uniform sampler2D sobelMaskTexture;
 
 uniform int debugMode;
-uniform vec2 uLightPosition; // position de la lumiere en UV [0, 1]
-uniform float uLightHeight;  // hauteur Z de la lumiere
+uniform vec3 uSunDirection;
+uniform vec3 uSunColor;
+uniform float uSunIntensity;
+uniform float uAmbientLight;
+uniform vec2 uLightPosition;
+uniform float uLightHeight;
 
 const float nearPlane = 0.1;
 const float farPlane = 100.0;
@@ -25,7 +30,7 @@ const float CIRCLE_SHADOW_DARKNESS = 0.3;
 const float CIRCLE_SHADOW_MIN_LIGHT = 0.05;
 
 //Intensites du cel shading
-const float CEL_SHADOW_LIGHT = 0.30;
+const float CEL_SHADOW_LIGHT = 0.50;
 const float CEL_FULL_LIGHT = 1.00;
 
 //Seuils du two-step cel
@@ -56,18 +61,37 @@ float linearDepth(float depth)
     (farPlane + nearPlane - z * (farPlane - nearPlane));
 }
 
-float computeDiffuse(vec2 uv, vec3 encodedNormal)
+float computeSunDiffuse(vec3 encodedNormal)
 {
     vec3 normal = decodeNormal(encodedNormal);
+    return max(dot(normal, normalize(uSunDirection)), 0.0);
+}
 
+float computeMouseDiffuse(vec2 uv, vec3 encodedNormal)
+{
+    vec3 normal = decodeNormal(encodedNormal);
     vec2 resolution = vec2(textureSize(colorTexture, 0));
-
     vec2 lightDelta = uLightPosition - uv;
     lightDelta.x *= resolution.x / resolution.y;
 
     vec3 lightDirection = normalize(vec3(lightDelta, uLightHeight));
-
     return max(dot(normal, lightDirection), 0.0);
+}
+
+float computeDiffuse(vec2 uv, vec3 encodedNormal)
+{
+    float sunDiffuse = computeSunDiffuse(encodedNormal);
+    float mouseDiffuse = computeMouseDiffuse(uv, encodedNormal);
+    return clamp(sunDiffuse * uSunIntensity + mouseDiffuse * 0.65, 0.0, 1.0);
+}
+
+vec3 applyCombinedLighting(vec3 color, vec2 uv, vec3 encodedNormal)
+{
+    float sunDiffuse = computeSunDiffuse(encodedNormal);
+    float mouseDiffuse = computeMouseDiffuse(uv, encodedNormal);
+    vec3 sunLight = uSunColor * sunDiffuse * uSunIntensity;
+    vec3 mouseLight = vec3(1.0, 0.96, 0.88) * mouseDiffuse * 0.65;
+    return color * min(vec3(uAmbientLight) + sunLight + mouseLight, vec3(1.6));
 }
 
 float twoStepCel(float diffuse)
@@ -190,7 +214,7 @@ float sobelEdges(vec2 uv)
     );
 
     // Reglage du poids des differentes sources de contour
-    float edgeStrength = colorEdge * 0.45 + normalEdge * 0.28 + depthEdge * 5.;
+    float edgeStrength = colorEdge * 0.45 + normalEdge * 0.02 + depthEdge * 5.;
     //float edgeStrength = colorEdge * 0.5 + normalEdge * 0.3 + depthEdge * 10.;
 
     float threshold = 0.18;
@@ -204,11 +228,13 @@ float circleShadowMask(float diffuse)
     pos = rotate2D(radians(CIRCLE_SHADOW_ROTATION)) * pos;
 
     vec2 gridPos = mod(pos, CIRCLE_SHADOW_GRID_STEP);
+    float cel = twoStepCel(diffuse);
+    float shadowBand = 1.0 - step(0.999, cel);
     float radius = CIRCLE_SHADOW_RADIUS
     * CIRCLE_SHADOW_GRID_STEP
     * pow(1.0 - diffuse, 2.0);
 
-    return circle(gridPos, vec2(CIRCLE_SHADOW_GRID_STEP * 0.5), radius);
+    return circle(gridPos, vec2(CIRCLE_SHADOW_GRID_STEP * 0.5), radius) * shadowBand;
 }
 
 
@@ -234,8 +260,7 @@ vec3 applyLightingWithCircleShadowsCel(vec3 baseColor, vec3 encodedNormal)
 
 vec3 applyLighting(vec3 color, vec3 encodedNormal)
 {
-    float diffuse = computeDiffuse(vUV, encodedNormal);
-    return color * (0.25 + diffuse * 0.75);
+    return applyCombinedLighting(color, vUV, encodedNormal);
 }
 
 void main()
@@ -251,23 +276,12 @@ void main()
 
     float diffuse = computeDiffuse(vUV, encodedNormal);
     float cel = twoStepCel(diffuse);
-    float edge = sobelEdges(vUV);
+    float sobelIntensity = texture(sobelMaskTexture, vUV).r;
+    float edge = sobelEdges(vUV) * sobelIntensity;
+    float sunLighting = clamp(uAmbientLight + diffuse, 0.0, 1.0);
 
     if (debugMode == 0) {
-//        fsColor = vec4(baseColor, 1.0);
-        // ciel
-        float rawDepth = texture(depthTexture, vUV).r;
-        if (rawDepth >= 0.9999) { // tres loin
-            vec3 skyTop = vec3(0.30, 0.52, 0.80);
-            vec3 skyHorizon = vec3(0.72, 0.86, 0.96);
-            fsColor = vec4(mix(skyHorizon, skyTop, vUV.y), 1.0);
-            return;
-        }
-
-        vec3 baseColor = texture(colorTexture, vUV).rgb;
-        vec3 encodedNormal = texture(normalTexture, vUV).rgb;
-        fsColor = vec4(applyLighting(baseColor, encodedNormal), 1.0);
-        //fsColor = vec4(baseColor, 1.0);
+        fsColor = vec4(baseColor, 1.0);
     }
     //normales
     else if (debugMode == 1) {
@@ -290,7 +304,7 @@ void main()
     }
     //Sobel
     else if (debugMode == 4) {
-        fsColor = vec4(vec3(edge), 1.0);
+        fsColor = vec4(uSunColor * edge * sunLighting, 1.0);
     }
     //diffuse
     else if (debugMode == 5) {
@@ -313,7 +327,8 @@ void main()
     //rendu final ombres en points + Sobel + couleur + two-step cel
     else if (debugMode == 9) {
         vec3 finalColor = applyLightingWithCircleShadowsCel(baseColor, encodedNormal);
-        fsColor = vec4(mix(finalColor, vec3(0.0), edge), 1.0);
+        vec3 outlineColor = baseColor * 0.22;
+        fsColor = vec4(mix(finalColor, outlineColor, edge), 1.0);
     }
     else if (debugMode == 10) {
         float rawDepth = texture(depthTexture, vUV).r;
@@ -325,24 +340,25 @@ void main()
             return;
         }
 
-        vec3 litColor = applyLighting(baseColor, encodedNormal);
+        // Base du mode 9 : cel shading et ombres en cercles.
+        vec3 finalColor = applyLightingWithCircleShadowsCel(baseColor, encodedNormal);
 
-        // 1. couleur ambiante
-        litColor = litColor * 0.55 + 0.18;
+        // Degrade lumineux doux, suffisamment leger pour conserver les bandes.
+        vec3 smoothLighting = applyLighting(baseColor, encodedNormal);
+        vec3 smoothModulation = smoothLighting / max(baseColor, vec3(0.08));
+        finalColor *= mix(vec3(1.0), smoothModulation, 0.22);
 
-        // 2. léger voile blanc-bleu sur toute la scène
+        // Voile atmospherique bleu-blanc.
         vec3 haze = vec3(0.88, 0.93, 0.98);
-        litColor = mix(litColor, haze, 0.1);
+        finalColor = mix(finalColor, haze, 0.20);
 
-        // 3. faux bloom, les zones claires rayonnent un peu
-        float brightness = dot(litColor, vec3(0.299, 0.587, 0.114));
-        litColor += litColor * pow(brightness, 7.0) * 0.6;
+        // Faux bloom sur les zones claires.
+        float brightness = dot(finalColor, vec3(0.299, 0.587, 0.114));
+        finalColor += finalColor * pow(brightness, 7.0) * 0.6;
 
-        //// 4. tone mapping doux, évite la surexposition
-        //litColor = litColor / (litColor + vec3(0.95));
-        //litColor *= 1.4;
-
-        fsColor = vec4(litColor, 1.0);
+        vec3 outlineColor = baseColor * 0.22;
+        outlineColor = mix(outlineColor, haze, 0.20);
+        fsColor = vec4(mix(finalColor, outlineColor, edge), 1.0);
     }
     else {
         fsColor = vec4(1.0, 0.0, 1.0, 1.0);

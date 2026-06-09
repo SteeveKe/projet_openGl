@@ -36,6 +36,7 @@ GLuint shaderProgram = 0;
 GLuint grassShaderProgram = 0;
 Mesh modelMesh;
 Mesh grassMesh;
+Mesh houseMesh;
 RockField rocks;
 TreeField trees;
 TreeField trees2;
@@ -56,6 +57,7 @@ int debugMode = 10;
 GLuint framebuffer = 0;
 GLuint framebufferColorTexture = 0;
 GLuint framebufferNormalTexture = 0;
+GLuint framebufferSobelMaskTexture = 0;
 GLuint framebufferDepthTexture = 0;
 
 const GLfloat clearColor[] = {0.72f, 0.86f, 0.96f, 1.0f};
@@ -63,9 +65,21 @@ const GLfloat clearNormal[] = {0.5f, 0.5f, 1.0f, 1.0f};
 
 void reshape(int width, int height)
 {
-    windowWidth = width;
+    windowWidth = width > 0 ? width : 1;
     windowHeight = height > 0 ? height : 1;
+
+    resizeFrameBuffer(
+        windowWidth,
+        windowHeight,
+        framebufferColorTexture,
+        framebufferNormalTexture,
+        framebufferSobelMaskTexture,
+        framebufferDepthTexture,
+        framebuffer
+    );
+
     glViewport(0, 0, windowWidth, windowHeight);
+    glutPostRedisplay();
 }
 
 void update()
@@ -116,9 +130,9 @@ void display()
 
     glClearBufferfv(GL_COLOR, 0, clearColor);
     glClearBufferfv(GL_COLOR, 1, clearNormal);
+    const GLfloat clearSobelMask[] = {0.0f, 0.0f, 0.0f, 0.0f};
+    glClearBufferfv(GL_COLOR, 2, clearSobelMask);
     glClear(GL_DEPTH_BUFFER_BIT);
-    glClearColor(0.72f, 0.86f, 0.96f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     const float aspect = static_cast<float>(windowWidth) / static_cast<float>(windowHeight);
     const Mat4 projection = perspective(45.0f * 3.14159265f / 180.0f, aspect, 0.1f, 100.0f);
@@ -135,6 +149,7 @@ void display()
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, mvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, model.data());
     glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+    glUniform1f(glGetUniformLocation(shaderProgram, "uSobelMask"), 1.0f);
 
     glBindVertexArray(modelMesh.vao);
     for (const SubMesh& subMesh : modelMesh.subMeshes) {
@@ -153,12 +168,42 @@ void display()
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    // maison
+    constexpr float houseX = 4.0f;
+    constexpr float houseZ = 3.0f;
+    constexpr float houseScale = 2.0f;
+    constexpr float houseBaseOffset = 0.51f * houseScale;
+    const Mat4 houseModel = multiply(
+        translate(houseX, terrainHeight(houseX, houseZ) + houseBaseOffset, houseZ),
+        multiply(rotateY(-0.65f + 3.14159265f), scale(houseScale))
+    );
+    const Mat4 houseMvp = multiply(projection, multiply(view, houseModel));
+
+    glUseProgram(shaderProgram);
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, houseMvp.data());
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, houseModel.data());
+    glUniform1f(glGetUniformLocation(shaderProgram, "uSobelMask"), 1.0f);
+    glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
+
+    glBindVertexArray(houseMesh.vao);
+    for (const SubMesh& subMesh : houseMesh.subMeshes) {
+        glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, subMesh.color.data());
+        glUniform1i(glGetUniformLocation(shaderProgram, "uUseTexture"), subMesh.hasTexture ? 1 : 0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, subMesh.hasTexture ? subMesh.texture : 0);
+        glDrawArrays(GL_TRIANGLES, subMesh.firstVertex, subMesh.vertexCount);
+    }
+    glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     //terrain
     const Mat4 terrainModel = identity();
     const Mat4 terrainMvp = multiply(projection, multiply(view, terrainModel));
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMvp"), 1, GL_FALSE, terrainMvp.data());
     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uModel"), 1, GL_FALSE, terrainModel.data());
+    glUniform1f(glGetUniformLocation(shaderProgram, "uSobelMask"), 0.0f);
     glBindVertexArray(terrainMesh.vao);
     for (const SubMesh& subMesh : terrainMesh.subMeshes) {
         glUniform3fv(glGetUniformLocation(shaderProgram, "uColor"), 1, subMesh.color.data());
@@ -168,6 +213,7 @@ void display()
     glBindVertexArray(0);
 
     // pierres
+    glUniform1f(glGetUniformLocation(shaderProgram, "uSobelMask"), 1.0f);
     glBindVertexArray(rocks.mesh.vao);
     for (const Mat4& rockModel : rocks.transforms) {
         const Mat4 rockMvp = multiply(projection, multiply(view, rockModel));
@@ -274,7 +320,16 @@ void display()
     glBindTexture(GL_TEXTURE_2D, framebufferDepthTexture);
     glUniform1i(glGetUniformLocation(screenShaderProgram, "depthTexture"), 2);
 
+    // masque indiquant les pixels de Link
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, framebufferSobelMaskTexture);
+    glUniform1i(glGetUniformLocation(screenShaderProgram, "sobelMaskTexture"), 3);
+
     glUniform1i(glGetUniformLocation(screenShaderProgram, "debugMode"), debugMode);
+    glUniform3f(glGetUniformLocation(screenShaderProgram, "uSunDirection"), -0.45f, 0.80f, 0.35f);
+    glUniform3f(glGetUniformLocation(screenShaderProgram, "uSunColor"), 1.0f, 0.92f, 0.78f);
+    glUniform1f(glGetUniformLocation(screenShaderProgram, "uSunIntensity"), 0.85f);
+    glUniform1f(glGetUniformLocation(screenShaderProgram, "uAmbientLight"), 0.25f);
     glUniform2f(glGetUniformLocation(screenShaderProgram, "uLightPosition"), mouseX, mouseY);
     glUniform1f(glGetUniformLocation(screenShaderProgram, "uLightHeight"), 0.35f);
 
@@ -331,7 +386,8 @@ int main(int argc, char** argv)
 
     // link
     //modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "IronMan.obj");
-    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "link/3DS - The Legend of Zelda_ Ocarina of Time 3D - Playable Characters - Link (Adult)/link.obj");
+    modelMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "link2/link.obj");
+    houseMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "house/Biskupin_Tower.obj");
 
     srand(42);
     rocks = generateRocks(40, 10.0f, std::filesystem::path(MODEL_DIR) / "rock2/Modeling Clay Rock/clayrock.obj");
@@ -345,6 +401,7 @@ int main(int argc, char** argv)
         windowHeight,
         framebufferColorTexture,
         framebufferNormalTexture,
+        framebufferSobelMaskTexture,
         framebufferDepthTexture,
         framebuffer
     );

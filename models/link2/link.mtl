@@ -1,0 +1,72 @@
+# Blender 5.1.2 MTL File: 'link.blend'
+# www.blender.org
+
+newmtl Arrow
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo.jpg
+
+newmtl Link
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 Link_albedo.jpg
+
+newmtl Quiver
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo1.jpg
+
+newmtl Shiekah_slate
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo.jpg
+
+newmtl Travelers_Shield
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo2.jpg
+
+newmtl Travelers_bow
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo3.jpg
+
+newmtl Travlers_sword
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.000000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Ke -o 0 -1 0 DefaultMaterial_albedo5.jpg

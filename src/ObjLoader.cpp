@@ -76,12 +76,16 @@ GLuint textureForMaterial(const std::filesystem::path& modelDirectory,
         return 0;
     }
 
-    const std::string& diffuseTexture = materials[materialId].diffuse_texname;
-    if (diffuseTexture.empty()) {
+    const tinyobj::material_t& material = materials[materialId];
+    const std::string& textureName = material.diffuse_texname.empty()
+        ? material.emissive_texname
+        : material.diffuse_texname;
+
+    if (textureName.empty()) {
         return 0;
     }
 
-    return loadTexture(modelDirectory / diffuseTexture);
+    return loadTexture(modelDirectory / textureName);
 }
 
 }

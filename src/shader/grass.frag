@@ -2,6 +2,7 @@
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outNormal;
+layout(location = 2) out float outSobelMask;
 
 uniform vec3 uColor;
 uniform bool uUseTexture;
@@ -65,6 +66,7 @@ void main()
     // normal
     vec3 n = normalize(vNormal);
     outNormal = vec4(0.5, 1.0, 0.5, 1.0);
+    outSobelMask = 0.3;
 
 }
 //outColor = vec4(texColor.rgb, 1.0);
