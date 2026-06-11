@@ -31,9 +31,19 @@ void main()
     float t = texCoord.y;
 
     float holeScale = noise(aInstancePos.xz * 0.9);
+    //float heightScale = (0.1 + hash(aInstancePos.xz) * 0.76);
+    //if (holeScale < 0.4) 
+    //    heightScale = (0.1 + hash(aInstancePos.xz) * 0.5);
+
     float heightScale = (0.1 + hash(aInstancePos.xz) * 0.76);
-    if (holeScale < 0.4) 
+    if (holeScale < 0.3) 
         heightScale = (0.1 + hash(aInstancePos.xz) * 0.3);
+
+    // Réduction de taille avec la distance
+    float distGrass  = length(aInstancePos.xz);
+    float sizeReduce = 1.0 - smoothstep(2.0, 9.0, distGrass);
+    sizeReduce       = max(sizeReduce, 0.15); // minimum 15% de la taille
+    heightScale     *= sizeReduce;
 
     // rotation Y par l'angle de l'instance
     float c = cos(aInstanceAngle);
@@ -45,8 +55,25 @@ void main()
     );
 
     // vent basé sur la position monde de l'instance
-    float wave = sin(uTime * 2.0 + aInstancePos.x * 1.5 + aInstancePos.z * 1.2);
-    pos.x += wave * 0.01 * t * t;
+    //float wave = sin(uTime * 2.0 + aInstancePos.x * 1.5 + aInstancePos.z * 1.2);
+    //pos.x += wave * 0.01 * t * t;
+
+    //float tWind = max(0.0, t - 0.2) / 0.8;
+    //float wave1 = sin(uTime * 2.0 + aInstancePos.x * 1.5 + aInstancePos.z * 1.2);
+    //float wave2 = sin(uTime * 0.7 + aInstancePos.x * 2.3 + aInstancePos.z * 0.8);
+    //float wave = wave1 * 0.7 + wave2 * 0.3;
+    //pos.x += wave * 0.01 * tWind * tWind;
+    //pos.z += wave * 0.005 * tWind * tWind;
+
+    float tWind = max(0.0, t - 0.4) / 0.6;
+    float wave1 = sin(uTime * 2.0 + aInstancePos.x * 1.5 + aInstancePos.z * 1.2);
+    float wave2 = sin(uTime * 0.7 + aInstancePos.x * 2.3 + aInstancePos.z * 0.8);
+    float wave = wave1 * 0.7 + wave2 * 0.3;
+    pos.x += wave * 0.01 * tWind * tWind * tWind * tWind;
+    pos.z += wave * 0.005 * tWind * tWind * tWind * tWind;
+
+
+
 
     // translation vers la position monde
     pos += aInstancePos;

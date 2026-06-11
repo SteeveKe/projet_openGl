@@ -28,8 +28,8 @@ float terrainHeight(float px, float pz)
     ridge = ridge * ridge;
 
     float dist = sqrt(px * px + pz * pz);
-    float mt = smoothstep(5.0f, 50.0f, dist);
-    float flat =  perlinNoise(px * 0.5f, pz * 0.5f) * 0.4f - 0.9f;
+    float mt = smoothstep(10.0f, 50.0f, dist);
+    float flat =  perlinNoise(px * 0.5f, pz * 0.5f) * 0.2f - 0.9f;
 
     //float flat = perlinNoise(px*0.08f, pz*0.08f) * 0.5f;
     float mountain = perlinNoise(px*0.15f, pz*0.15f) * 3.0f; // beaucoup plus haut

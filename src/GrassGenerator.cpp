@@ -12,7 +12,7 @@
 void addCard(std::vector<float>& v, float px, float py, float pz, float angle)
 {
     const float w = 0.15f;
-    const float h = 0.45f;
+    const float h = 0.35f;
 
     const float dx = std::cos(angle) * w;
     const float dz = std::sin(angle) * w;

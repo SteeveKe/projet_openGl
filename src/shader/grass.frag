@@ -31,8 +31,13 @@ float noise(vec2 p) {
 
 void main()
 {
-    if (vDist > 10.0)
-        discard;
+    //if (vDist > 10.0)
+    //    discard;
+    float fadeStart = 3.0;
+    float fadeEnd   = 10.0;
+    float fadeFactor = smoothstep(fadeStart, fadeEnd, vDist);
+    if (fadeFactor > hash(vWorldXZ * 7.3 + vec2(0.5))) discard;
+
 
 
     // color grass
@@ -65,9 +70,10 @@ void main()
 
     // normal
     vec3 n = normalize(vNormal);
-    outNormal = vec4(0.5, 1.0, 0.5, 1.0);
+    outNormal = vec4(0.5, 1.0, 0.5, 0.0); // alpha=0 -> detecte comme herbe dans screen.frag
     outSobelMask = 0.3;
-
+    //outNormal = vec4(0.5, 1.0, 0.5, 1.0);
+    //outSobelMask = 0.3;
 }
 //outColor = vec4(texColor.rgb, 1.0);
 //outNormal = vec4(n * 0.5 + 0.5, 1.0);

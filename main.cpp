@@ -51,7 +51,7 @@ float mouseY = 0.5f;
 
 constexpr int minDebugMode = 0;
 constexpr int maxDebugMode = 10;
-int debugMode = 10;
+int debugMode = 0;
 
 // Framebuffer custom : on rend le modele dedans avant le post-process.
 GLuint framebuffer = 0;
@@ -379,7 +379,8 @@ int main(int argc, char** argv)
     );
 
     // herbe
-    grassMesh = generateGrass(200000, 8.0f, std::filesystem::path(MODEL_DIR) / "grass.png");
+    //grassMesh = generateGrass(400000, 6.0f, std::filesystem::path(MODEL_DIR) / "grass.png");
+    grassMesh = generateGrass(100000, 6.0f, std::filesystem::path(MODEL_DIR) / "grass.png");
 
     //terrain
     terrainMesh = generateTerrain(100, 100.0f);
@@ -390,7 +391,7 @@ int main(int argc, char** argv)
     houseMesh = loadObjModel(std::filesystem::path(MODEL_DIR) / "house/Biskupin_Tower.obj");
 
     srand(42);
-    rocks = generateRocks(40, 10.0f, std::filesystem::path(MODEL_DIR) / "rock2/Modeling Clay Rock/clayrock.obj");
+    rocks = generateRocks(40, 4.0f, std::filesystem::path(MODEL_DIR) / "rock2/Modeling Clay Rock/clayrock.obj");
     //trees  = generateTrees(0,  15.0f, std::filesystem::path(MODEL_DIR) / "tree/叫ぶ木 (Debug)/o00_7100.obj");
     //trees2 = generateTrees(0, 30.0f, std::filesystem::path(MODEL_DIR) / "tree2/Willow Tree/treewillow_tslocator_gmdc.obj");
 

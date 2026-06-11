@@ -55,6 +55,16 @@ vec3 terrainColor()
     color = mix(color, colorFog, smoothstep(15.0, 70.0, vDist));
 
     color *= 0.88 + 0.24 * n3;
+
+    // Pres du personnage : couleur verte harmonisee avec les brins d'herbe
+    // S'estompe progressivement vers la couleur normale du terrain avec la distance
+    vec3 colorGrassNear1 = mix(vec3(0.06, 0.28, 0.03), vec3(0.20, 0.50, 0.07), 0.4 + n1 * 0.6);
+    vec3 colorGrassNear2 = vec3(0.42, 0.85, 0.18);
+    vec3 colorGrassNear  = mix(colorGrassNear1, colorGrassNear2, 0.5);
+    float nearBlend = 1.0 - smoothstep(8.0, 18.0, vDist);
+    float flatness  = 1.0 - smoothstep(0.0, 0.3, slope);
+    color = mix(color, colorGrassNear, nearBlend * flatness);
+
     return color;
 }
 

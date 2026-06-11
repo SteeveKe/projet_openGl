@@ -3,6 +3,7 @@
 #include "TerrainGenerator.h"
 
 #include <cstdlib>
+#include <cmath>
 
 RockField generateRocks(int count, float spread, const std::filesystem::path& objPath)
 {
@@ -13,10 +14,12 @@ RockField generateRocks(int count, float spread, const std::filesystem::path& ob
         float px    = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
         float pz    = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * spread;
         float angle = (float)rand() / RAND_MAX * 6.28318f;
-        float s     = 0.15f + (float)rand() / RAND_MAX * 0.2f;
+        float dist       = sqrtf(px * px + pz * pz);
+        float sizeReduce = 1.0f - 0.65f * (dist / spread);
+        sizeReduce       = sizeReduce < 0.3f ? 0.3f : sizeReduce;
+        float s          = (0.15f + (float)rand() / RAND_MAX * 0.2f) * sizeReduce;
 
-        Mat4 t = multiply(translate(px, terrainHeight(px, pz), pz),
-                  multiply(rotateY(angle), scale(s)));
+        Mat4 t = multiply(translate(px, terrainHeight(px, pz), pz), multiply(rotateY(angle), scale(s)));
         field.transforms.push_back(t);
     }
 
